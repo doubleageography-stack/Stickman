@@ -1,0 +1,63 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Life Drain</title>
+<style>:root{--bg:#11141c;--c:#1c2230;--t:#e8ecf4;--m:#8b95aa;--a:#4f8cff;--r:#ff5468;--g:#3ecf8e}
+body{margin:0;background:var(--bg);color:var(--t);font:15px system-ui,sans-serif;padding:12px;max-width:760px;margin:auto}
+.card{background:var(--c);border-radius:10px;padding:12px;margin:8px 0}button{background:var(--a);color:#fff;border:0;border-radius:6px;padding:8px 12px;margin:3px;font-size:14px;cursor:pointer}
+button:disabled{opacity:.35;cursor:default}button.r{background:var(--r)}button.g{background:var(--g);color:#000}input{padding:8px;border-radius:6px;border:1px solid #345;background:#0c0f16;color:var(--t)}
+.m{color:var(--m)}.bar{height:8px;background:#0c0f16;border-radius:4px}.bar i{display:block;height:100%;background:var(--g);border-radius:4px}
+.alarm{color:var(--r);font-weight:700}.good{color:var(--g)}.warn{color:#ffc857}.sab{color:var(--r)}body.dark{filter:brightness(.4)}h3{margin:4px 0}</style></head><body><canvas id=cv width=760 height=420 style="width:100%;border-radius:10px;background:#07090e;display:none"></canvas><div id=app></div><script>
+let lastH='',S=null,G=sessionStorage.g,P=sessionStorage.p,off=0,es,lastMsg=0;const $=a=>document.getElementById(a);
+const api=async o=>(await fetch('/',{method:'POST',body:JSON.stringify({g:G,p:P,...o})})).json();
+const act=o=>api({op:'act',...o});
+async function enter(op){const r=await api({op,name:$('n').value,code:$('c')?.value});if(r.error)return alert(r.error);G=sessionStorage.g=r.g;P=sessionStorage.p=r.p;conn()}
+function conn(){if(es)es.close();es=new EventSource(`/events?g=${G}&p=${P}`);es.onmessage=e=>{S=JSON.parse(e.data);off=S.now-Date.now();draw()}}
+function beep(){try{const a=new AudioContext(),o=a.createOscillator();o.frequency.value=880;o.type='square';o.connect(a.destination);o.start();setTimeout(()=>o.stop(),600)}catch{}}
+const left=t=>Math.max(0,Math.ceil((t-(Date.now()+off))/1000));
+function draw(){if(!S)return;const m=S.me,A={set innerHTML(v){if(v!==lastH){lastH=v;$('app').innerHTML=v}}};
+ for(const x of S.msgs||[])if(x.t>lastMsg){lastMsg=x.t;if(x.kind==='alarm')beep()}
+ if(S.phase==='lobby'){A.innerHTML=`<div class=card><h3>Lobby ${S.code}</h3><p class=m>Share the code. ${S.players.length} players (need ${S.cfg.min}+, max 8)</p>${S.players.map(p=>p.name).join(', ')}<br>${S.host?`<button onclick="api({op:'start'})" ${S.players.length<S.cfg.min?'disabled':''}>Start game</button>`:'Waiting for host...'}</div>`;return}
+ const live=S.players.filter(p=>p.alive&&p.id!==m.id),imp=m.team==='imp',R=m.role,t=Date.now()+off;
+ const cd=(u,l,f,x='')=>`<button ${left(u)||!m.alive?'disabled':''} onclick="${f}">${l}${left(u)?' ('+left(u)+'s)':''}</button>`;
+ let h=`<div class=card><b>${m.name}</b> — <b class=${imp?'alarm':'good'}>${R}</b> ${m.alive?'':'(eliminated – spectating)'}<br>Lives: <b>${'♥'.repeat(Math.max(0,m.lives))}</b> <span class=m>(only you can see this)</span>
+ <div class=bar><i style="width:${S.progress[0]/S.progress[1]*100}%"></i></div><span class=m>Task progress ${S.progress[0]}/${S.progress[1]}</span></div>`;
+ if(S.phase==='over'){h+=`<div class="card"><h3>${S.winner} win!</h3>${S.why}<br><br>${S.roles.map(r=>`${r[0]}: ${r[1]} (${r[2]}♥)`).join('<br>')}</div><button onclick="sessionStorage.clear();location.reload()">Back</button>`}
+ else if(S.meeting){h+=`<div class=card><h3>Meeting — ${left(S.meeting.end)}s</h3><p class=m>${S.meeting.voted} votes cast. Your vote: ${S.meeting.mine?'cast':'none'}</p>${S.players.filter(p=>p.alive).map(p=>`<button ${m.alive&&!S.meeting.mine?'':'disabled'} onclick="act({a:'vote',target:'${p.id}'})">${p.name}</button>`).join('')}<button ${m.alive&&!S.meeting.mine?'':'disabled'} onclick="act({a:'vote',target:'skip'})">Skip</button></div>`}
+ else{
+  if(S.sab)h+=`<div class="card sab"><b>SABOTAGE: ${S.sab.type.toUpperCase()}</b> ${S.sab.type==='reactor'?'— '+left(S.sab.end)+'s! '+S.sab.need+' players must hold repair together at Reactor':S.sab.type==='doors'?'('+S.sab.room+' locked)':'— repair at '+(S.sab.type==='lights'?'Electrical':'Admin')}${!imp&&['lights','comms','reactor'].includes(S.sab.type)?`<br><button class=r onclick="act({a:'repair'})">Repair (must be in room)</button>`:''}</div>`;
+  h+=`<div class=card><h3>📍 ${m.room}</h3>Here: ${S.occ.map(o=>o.name+(o.room?' @'+o.room:'')).join(', ')||'nobody'}<br><span class=m>Move with WASD / arrow keys</span>
+  ${(imp||R==='Engineer')&&S.cfg.ventRooms.includes(m.room)?'<br>Vent: '+S.cfg.ventRooms.filter(r=>r!==m.room).map(r=>`<button class=g onclick="act({a:'vent',room:'${r}'})">${r}</button>`).join(''):''}
+  <br><button onclick="act({a:'meeting'})" ${m.alive?'':'disabled'}>Call meeting</button></div>`;
+  h+=`<div class=card><h3>Tasks</h3>${m.tasks.map(k=>`<div>${k.done?'✅':'⬜'} ${k.kind}: ${k.name} <span class=m>@${k.room}${imp?' (fake)':''}</span> ${!k.done&&k.room===m.room&&m.alive?`<button onclick="act({a:'task',task:'${k.id}'})">Do</button>`:''}</div>`).join('')}${m.doing?'Working... '+left(m.doing)+'s':''}</div>`;
+  h+=`<div class=card><h3>Ability</h3>`;
+  if(imp){h+=live.map(p=>`<button class=r ${t<m.atkCd||m.attacking||m.invis?'disabled':''} onclick="act({a:'attack',target:'${p.id}'})">Drain ${p.name}</button>`).join('')+`<br>${m.attacking?'Drain in progress (secret) ':''}${left(m.atkCd)?'Attack cooldown '+left(m.atkCd)+'s':''}<br>`;
+   if(R==='Phantom')h+=`<button ${m.invisUsed||m.invis?'disabled':''} onclick="act({a:'invis'})">Go invisible${m.invisUsed?' (used this round)':''}</button><br>`;
+   h+='Sabotage: '+['lights','comms','doors','reactor'].map(s=>cd(m.sabCd,s,`act({a:'sabotage',type:'${s}'})`)).join('')}
+  else if(R==='Scout')h+=S.cfg.rooms.map(r=>cd(m.scoutCd,'Watch '+r,`act({a:'scout',room:'${r}'})`)).join('')+(S.sab?.type==='comms'?'<br class=warn>Comms down!':'');
+  else if(R==='Guardian Angel')h+=live.map(p=>cd(m.guardCd,'Protect '+p.name,`act({a:'protect',target:'${p.id}'})`)).join('');
+  else if(R==='Medic')h+=m.healUsed?'Heal used.':live.concat(S.players.filter(p=>0)).map(p=>`<button onclick="act({a:'heal',target:'${p.id}'})">Heal ${p.name}</button>`).join('');
+  else h+='Vents available at Admin, Medbay, Engine, Reactor.';
+  h+='</div>'}
+ h+=`<div class=card>${S.msgs.slice().reverse().map(x=>`<div class=${x.kind}>${x.text}</div>`).join('')}</div>`;A.innerHTML=h}
+if(!G||!P)$('app').innerHTML=`<div class=card><h3>Life Drain</h3><input id=n placeholder="Your name"> <input id=c placeholder="Code (to join)" size=6><br><button onclick="enter('create')">Create game</button><button onclick="enter('join')">Join game</button></div>`;else conn();
+const cv=$('cv'),cx=cv.getContext('2d'),COL=['#e0525e','#4f8cff','#3ecf8e','#ffc857','#b66cff','#ff8f4f','#4fd6e0','#e8ecf4'],pos={};let keys={},ld='0,0';
+onkeydown=onkeyup=e=>{if(e.target.tagName==='INPUT')return;const d=e.type==='keydown',k=e.key.toLowerCase();if(!('wasd'.includes(k)&&k.length==1||k.startsWith('arrow')))return;e.preventDefault();keys[k]=d;
+ const dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0),dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0);if(dx+','+dy!==ld){ld=dx+','+dy;act({a:'dir',dx,dy})}};
+function body(o,t,alpha){const b=o.mv?Math.sin(t/70)*2:0;cx.save();cx.globalAlpha=alpha;cx.translate(o.dx,o.dy+b);cx.fillStyle=COL[o.c%8];
+ cx.beginPath();cx.roundRect(-11,-16,22,28,9);cx.fill();cx.fillStyle='#fff';cx.beginPath();cx.arc(-4,-7,4,0,7);cx.arc(5,-7,4,0,7);cx.fill();cx.fillStyle='#111';cx.beginPath();cx.arc(-3,-7,2,0,7);cx.arc(6,-7,2,0,7);cx.fill();
+ cx.strokeStyle=COL[o.c%8];cx.lineWidth=2;cx.beginPath();cx.moveTo(0,-16);cx.lineTo(0,-23);cx.stroke();cx.fillStyle='#fff';cx.font='10px sans-serif';cx.textAlign='center';cx.fillText(o.name,0,24);cx.restore()}
+function frame(){requestAnimationFrame(frame);if(!S||!S.me||S.phase==='lobby'||!S.me.x&&S.me.x!==0){cv.style.display='none';return}cv.style.display='block';
+ const m=S.me,M=S.cfg.map,W=cv.width,H=cv.height,sc=1.3,t=Date.now(),L=[{id:m.id,name:m.name,x:m.x,y:m.y,c:m.c,me:1},...S.occ];
+ for(const o of L){const p=pos[o.id]||(pos[o.id]={x:o.x,y:o.y});const d=Math.hypot(o.x-p.x,o.y-p.y);p.x+=(o.x-p.x)*.3;p.y+=(o.y-p.y)*.3;o.dx=p.x;o.dy=p.y;o.mv=d>1}
+ cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#07090e';cx.fillRect(0,0,W,H);cx.setTransform(sc,0,0,sc,W/2-L[0].dx*sc,H/2-L[0].dy*sc);
+ cx.fillStyle='#262e42';M.HALLS.forEach(r=>cx.fillRect(...r));cx.lineWidth=3;cx.textAlign='center';
+ for(const k in M.ROOMS){const r=M.ROOMS[k];cx.fillStyle='#2f3a52';cx.fillRect(...r);cx.strokeStyle='#5c6a8c';cx.strokeRect(...r);cx.fillStyle='#5c6a8c';cx.font='14px sans-serif';cx.fillText(k,r[0]+r[2]/2,r[1]+18);
+  if(S.cfg.ventRooms.includes(k)){cx.fillStyle='#10131c';cx.fillRect(r[0]+14,r[1]+r[3]-30,28,16);cx.strokeStyle='#445';cx.lineWidth=1;for(let i=1;i<4;i++){cx.beginPath();cx.moveTo(r[0]+14,r[1]+r[3]-30+i*4);cx.lineTo(r[0]+42,r[1]+r[3]-30+i*4);cx.stroke()}cx.lineWidth=3}
+  if(S.sab&&S.sab.type==='doors'&&S.sab.room===k){cx.fillStyle='rgba(255,70,90,.35)';cx.fillRect(...r)}}
+ m.tasks.forEach((k,i)=>{if(k.done||m.team==='imp'&&0)return;const r=M.ROOMS[k.room];cx.fillStyle=k.kind==='Long'?'#ff8f4f':k.kind==='Common'?'#b66cff':'#ffc857';cx.fillRect(r[0]+r[2]/2-36+i*24,r[1]+r[3]/2-6,14,14)});
+ if(S.sab){const k={lights:'Electrical',comms:'Admin',reactor:'Reactor'}[S.sab.type];if(k){const r=M.ROOMS[k];cx.fillStyle=`rgba(255,60,80,${.3+.3*Math.sin(t/150)})`;cx.beginPath();cx.arc(r[0]+r[2]/2,r[1]+r[3]/2+30,16,0,7);cx.fill()}}
+ L.slice(1).forEach(o=>body(o,t,m.alive?1:.5));body(L[0],t,!m.alive?.4:m.invis?.35:1);
+ cx.setTransform(1,0,0,1,0,0);
+ if(m.alive){const R=m.vis*sc,g=cx.createRadialGradient(W/2,H/2,R*.45,W/2,H/2,R);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.94)');cx.fillStyle=g;cx.fillRect(0,0,W,H)}
+ if(S.sab&&S.sab.type==='reactor'){cx.fillStyle=`rgba(255,0,0,${.08+.08*Math.sin(t/180)})`;cx.fillRect(0,0,W,H)}}
+frame();
+setInterval(()=>S&&S.phase!=='lobby'&&draw(),1000);
+</script></body></html>
