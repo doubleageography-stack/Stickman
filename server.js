@@ -58,9 +58,9 @@ function pub(g,text,kind){S(g).forEach(p=>msg(g,p,text,kind))}
 function end(g,winner,why){if(g.phase==='over')return;g.phase='over';g.winner=winner;g.why=why;g.attack=null;g.sab=null;g.meeting=null}
 function check(g){if(g.phase==='over'||g.phase==='lobby')return;
  const im=imp(g),crew=S(g).filter(p=>p.team==='crew');
- if(!im.alive)return end(g,'Crewmates','The Imposter lost all lives');
+ if(!im.alive)return end(g,'Crewmates',im.left?'The Imposter left the game':'The Imposter lost all lives');
  if(!crew.some(p=>p.alive))return end(g,'Imposter','All Crewmates eliminated');
- const T=crew.flatMap(p=>p.tasks);if(T.every(t=>t.done))end(g,'Crewmates','All tasks completed')}
+ const T=crew.filter(p=>!p.left).flatMap(p=>p.tasks);if(T.every(t=>t.done))end(g,'Crewmates','All tasks completed')}
 function advance(g,p,k){k.step++;const n=TASKS[k.key].steps.length;if(k.step>=n){k.done=true;msg(g,p,'Task complete: '+k.name,'good')}else msg(g,p,k.name+': part '+k.step+' of '+n+' done. Next: '+TASKS[k.key].steps[k.step].label,'good')}
 const NCOL=12;
 function setProf(g,p,color,hat){if(Number.isInteger(hat)&&hat>=0&&hat<8)p.hat=hat;else if(p.hat==null)p.hat=0;
@@ -139,28 +139,34 @@ function act(g,p,d){const t=now();
  case'protect':{const g2=nearest(g,p);if(p.role!=='Guardian Angel'||t<p.guardCd||!g2)return;p.guardCd=t+CFG.guardCd*1000;g2.guard=t+CFG.guardDur*1000;g2.guardBy=p.id;msg(g,p,'Protecting '+g2.name,'good');break}
  case'heal':{const h2=nearest(g,p);if(p.role!=='Medic'||p.healUsed||p.heal||!h2)return;if(CFG.medicCapAtMax&&h2.lives>=CFG.lives)return msg(g,p,'Target is already at max lives','warn');p.healUsed=true;p.heal={target:h2.id,end:t+rnd(...CFG.healDelay)*1000};msg(g,p,'Healing '+h2.name+'... stay patient','good');break}}
  check(g)}
+function leaveGame(g,p){if(p.res){try{p.res.end()}catch{}p.res=null}
+ if(g.phase==='lobby'){delete g.players[p.id];if(g.host===p.id)g.host=Object.keys(g.players)[0];if(!S(g).length)delete G[g.code];return}
+ if(p.left)return;p.left=true;if(p.alive){p.alive=false;p.lives=0;p.doing=null;p.dx=p.dy=0}
+ if(g.attack&&g.attack.target===p.id)g.attack=null;
+ if(S(g).every(q=>q.left)){delete G[g.code];return}
+ if(g.phase==='play')pub(g,p.name+' left the game.','info');check(g)}
 function go(g,p,room){const old=p.room;p.doing=null;p.room=room;
  if(!p.invisEnd)S(g).forEach(o=>{if(o.obs){if(o.obs.room===old)o.obs.log.push(p.name+' left');if(o.obs.room===room)o.obs.log.push(p.name+' entered')}})}
 function view(g,p){const t=now(),dead=!p.alive,im=p.team==='imp',dark=g.sab&&g.sab.type==='lights'&&!im&&!dead;
  const V=g.phase==='lobby'?99999:dark?90:260,dist=q=>Math.hypot(q.x-p.x,q.y-p.y);
- const occ=S(g).filter(q=>q.id!==p.id&&q.alive&&(dead||!q.invisEnd&&dist(q)<V&&(q.room===p.room||dist(q)<110))).map(q=>({id:q.id,name:dark?'???':q.name,x:q.x,y:q.y,c:q.c,h:q.hat,room:dead?q.room:undefined}));
- const T=S(g).filter(q=>q.team==='crew').flatMap(q=>q.tasks);
+ const occ=S(g).filter(q=>q.id!==p.id&&q.alive&&(dead||!q.invisEnd&&dist(q)<V&&(q.room===p.room||dist(q)<110))).map(q=>({id:q.id,name:dark?'???':q.name,x:Math.round(q.x),y:Math.round(q.y),c:q.c,h:q.hat,room:dead?q.room:undefined}));
+ const T=S(g).filter(q=>q.team==='crew'&&!q.left).flatMap(q=>q.tasks);
  const v={now:t,phase:g.phase,code:g.code,host:g.host===p.id,players:S(g).map(q=>({id:q.id,name:q.name,alive:q.alive,c:q.c,h:q.hat})),
   progress:[T.reduce((a,x)=>a+x.step,0),T.reduce((a,x)=>a+TASKS[x.key].steps.length,0)],sab:g.sab&&{type:g.sab.type,end:g.sab.end,room:g.sab.room,need:CFG.reactorRepairers},
   meeting:g.meeting&&{chat:g.meeting.chat,end:g.meeting.end,voted:Object.keys(g.meeting.votes).length,mine:g.meeting.votes[p.id]||null},
-  msgs:p.msgs,reveal:g.revealEnd||0,winner:g.winner,why:g.why,cfg:{map:{ROOMS,st:ST,rep:REP,btn:BTN,halls:HALLS,vent:VENT},ventRooms:VENTS,min:CFG.minP,rooms:Object.keys(ROOMS)}};
+  msgs:p.msgs,reveal:g.revealEnd||0,winner:g.winner,why:g.why,cfg:p.cfgSent?undefined:{map:{ROOMS,st:ST,rep:REP,btn:BTN,halls:HALLS,vent:VENT,walk:WALK,block:BLOCK},speed:SPEED,ventRooms:VENTS,min:CFG.minP,rooms:Object.keys(ROOMS)}};
  if(g.phase!=='lobby'){const nt=nearest(g,p),ni=p.tasks.findIndex(k=>!k.done&&inRange(p,k)),rp=g.sab&&{lights:'Electrical',comms:'Communication',reactor:'Reactor'}[g.sab.type];
-  v.me={cam:p.obs&&{room:p.obs.room,end:p.obs.end,list:S(g).filter(q=>q.alive&&!q.invisEnd&&roomAt(q.x,q.y)===p.obs.room).map(q=>({x:q.x,y:q.y,c:q.c,h:q.hat})),bodies:(g.bodies||[]).filter(b=>roomAt(b.x,b.y)===p.obs.room).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat}))},hat:p.hat,healing:p.heal&&p.heal.end,near:{body:p.alive&&!g.meeting&&(g.bodies||[]).some(b=>dst(p,b.x,b.y)<=CFG.buttonRange)?1:0,btn:p.alive&&!g.meeting&&p.meetings<CFG.meetingsPerPlayer&&dst(p,BTN[0],BTN[1])<=CFG.buttonRange,tgt:nt&&nt.name,task:ni>=0?p.tasks[ni].id:null,vent:(im||p.role==='Engineer')&&VENTS.includes(p.room)&&dst(p,...ventPos(p.room))<=CFG.actionRange,repair:!!rp&&p.room===rp&&dst(p,...repPos(rp))<=CFG.actionRange},id:p.id,name:p.name,role:p.role,team:p.team,lives:p.lives,alive:p.alive,room:p.room,x:p.x,y:p.y,c:p.c,vis:V,tasks:p.tasks.map(k=>{const sp=!k.done&&TASKS[k.key].steps[k.step];return{id:k.id,name:k.name,kind:k.kind,done:k.done,step:k.step,steps:TASKS[k.key].steps.length,label:sp&&sp.label,type:sp&&sp.type,room:sp&&ST[sp.st][0],st:sp&&sp.st}}),
+  v.me={cam:p.obs&&{room:p.obs.room,end:p.obs.end,list:S(g).filter(q=>q.alive&&!q.invisEnd&&roomAt(q.x,q.y)===p.obs.room).map(q=>({x:q.x,y:q.y,c:q.c,h:q.hat})),bodies:(g.bodies||[]).filter(b=>roomAt(b.x,b.y)===p.obs.room).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat}))},hat:p.hat,healing:p.heal&&p.heal.end,near:{body:p.alive&&!g.meeting&&(g.bodies||[]).some(b=>dst(p,b.x,b.y)<=CFG.buttonRange)?1:0,btn:p.alive&&!g.meeting&&p.meetings<CFG.meetingsPerPlayer&&dst(p,BTN[0],BTN[1])<=CFG.buttonRange,tgt:nt&&nt.name,task:ni>=0?p.tasks[ni].id:null,vent:(im||p.role==='Engineer')&&VENTS.includes(p.room)&&dst(p,...ventPos(p.room))<=CFG.actionRange,repair:!!rp&&p.room===rp&&dst(p,...repPos(rp))<=CFG.actionRange},id:p.id,name:p.name,role:p.role,team:p.team,lives:p.lives,alive:p.alive,room:p.room,x:Math.round(p.x),y:Math.round(p.y),c:p.c,vis:V,tasks:p.tasks.map(k=>{const sp=!k.done&&TASKS[k.key].steps[k.step];return{id:k.id,name:k.name,kind:k.kind,done:k.done,step:k.step,steps:TASKS[k.key].steps.length,label:sp&&sp.label,type:sp&&sp.type,room:sp&&ST[sp.st][0],st:sp&&sp.st}}),
    doing:p.doing&&p.doing.end,dg:p.doing&&{id:p.doing.task.id,type:p.doing.type,min:p.doing.min,start:p.doing.start,end:p.doing.end,state:p.doing.st,name:p.doing.task.name,key:p.doing.task.key,stp:p.doing.step,label:TASKS[p.doing.task.key].steps[p.doing.step].label},invis:p.invisEnd,invisUsed:p.invisUsed,healUsed:p.healUsed,atkCd:p.atkCd,scoutCd:p.scoutCd,guardCd:p.guardCd,sabCd:g.sabCd,
    attacking:im&&g.attack?g.attack.end:0,atkTgt:im&&g.attack?g.attack.target:null,atkLen:im&&g.attack?g.attack.end-g.attack.start:0,guarded:p.guard};v.occ=occ;v.bodies=(g.bodies||[]).filter(b=>dead||dist(b)<V).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat}));
   if(g.phase==='over')v.roles=S(g).map(q=>[q.name,q.role,q.lives])}
  else{v.me={id:p.id,name:p.name,x:p.x,y:p.y,c:p.c,hat:p.hat,vis:99999,near:{},tasks:[],alive:true};v.occ=occ;v.lchat=g.lchat}return v}
-function push(g){for(const p of S(g))if(p.res)p.res.write('data: '+JSON.stringify(view(g,p))+'\n\n')}
-let lt=now();setInterval(()=>{const t=now(),dt=Math.min(.2,(t-lt)/1000);lt=t;for(const g of Object.values(G)){try{step(g,dt);tick(g);push(g)}catch(e){console.error(e)}}},100);
+function push(g){for(const p of S(g))if(p.res){p.res.write('data: '+JSON.stringify(view(g,p))+'\n\n');p.cfgSent=true}}
+let lt=now();setInterval(()=>{const t=now(),dt=Math.min(.2,(t-lt)/1000);lt=t;for(const g of Object.values(G)){try{step(g,dt);tick(g);push(g)}catch(e){console.error(e)}}},50);
 const body=r=>new Promise(res=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{try{res(JSON.parse(b||'{}'))}catch{res({})}})});
-http.createServer(async(req,res)=>{const u=new URL(req.url,'http://x');
+const srv=http.createServer(async(req,res)=>{const u=new URL(req.url,'http://x');
  if(req.method==='GET'&&u.pathname==='/events'){const g=G[u.searchParams.get('g')],p=g&&g.players[u.searchParams.get('p')];if(!p)return res.end();
-  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache'});p.res=res;res.write('data: '+JSON.stringify(view(g,p))+'\n\n');req.on('close',()=>{p.res=null});return}
+  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});p.res=res;p.cfgSent=false;res.write('data: '+JSON.stringify(view(g,p))+'\n\n');p.cfgSent=true;req.on('close',()=>{if(p.res===res)p.res=null});return}
  if(req.method==='POST'){const d=await body(req);let out={};
   if(d.op==='create'||d.op==='join'){let g;if(d.op==='create'){let c;do{c=String(1000+(Math.random()*9000|0))}while(G[c]);g=G[c]={code:c,players:{},phase:'lobby',lchat:[],bodies:[]}}else g=G[String(d.code||'').replace(/\D/g,'')];
    if(!g||g.phase!=='lobby'||S(g).length>=CFG.maxP)out={error:'Cannot join that game'};
@@ -168,7 +174,7 @@ http.createServer(async(req,res)=>{const u=new URL(req.url,'http://x');
   else{const g=G[d.g],p=g&&g.players[d.p];if(!p)out={error:'bad session'};
    else if(d.op==='profile'){if(g.phase==='lobby')setProf(g,p,d.color,d.hat)}
    else if(d.op==='start'){if(g.host===p.id&&g.phase==='lobby'&&S(g).length>=CFG.minP)start(g)}
-   else if(d.op==='act')act(g,p,d);if(g)push(g)}
+   else if(d.op==='leave')leaveGame(g,p);else if(d.op==='act')act(g,p,d);if(g)push(g)}
   res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(out))}
  if(u.pathname==='/map'){const f=['map.jpg','map.png'].map(n=>path.join(__dirname,n)).find(fs.existsSync);if(f){res.writeHead(200,{'Content-Type':f.endsWith('jpg')?'image/jpeg':'image/png','Cache-Control':'max-age=3600'});return res.end(fs.readFileSync(f))}}
- res.writeHead(200,{'Content-Type':'text/html'});res.end(fs.readFileSync(path.join(__dirname,'index.html')))}).listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));
+ res.writeHead(200,{'Content-Type':'text/html'});res.end(fs.readFileSync(path.join(__dirname,'index.html')))});srv.on('connection',s=>s.setNoDelay(true));srv.listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));

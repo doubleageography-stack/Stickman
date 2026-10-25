@@ -39,16 +39,40 @@ body.play input{-webkit-user-select:text;user-select:text}
 .sabal{position:fixed;top:16%;left:50%;transform:translateX(-50%);z-index:40;pointer-events:none;text-align:center;padding:12px 26px;border-radius:12px;background:#3a0710ee;border:2px solid var(--r);color:#fff;font-size:26px;font-weight:800;letter-spacing:4px;box-shadow:0 0 40px var(--r);animation:sabal 3.6s both}
 .sabal small{display:block;font-size:14px;font-weight:600;letter-spacing:1px;color:#ffd0d6;margin-top:2px}
 @keyframes sabal{0%{opacity:0;transform:translateX(-50%) scale(1.7)}10%,80%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) scale(1)}}
+#mtg{display:none;position:fixed;inset:0;z-index:30;background:#0b0d14;flex-direction:column;box-sizing:border-box;padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left))}
+#mtg.on{display:flex}
+#mtg .mh{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:0 4px 6px;font-size:14px}
+#mtg .mb{flex:1;display:flex;gap:8px;min-height:0}
+#mtg .mc{flex:1.2;display:flex;flex-direction:column;background:#161b28;border:1px solid #345;border-radius:10px;padding:6px;min-width:0}
+#mcl{flex:1;overflow:auto;font-size:14px}#mtg .r2{display:flex;gap:6px;margin-top:6px}#mci{flex:1;min-width:0}
+#mtg .mp{flex:1;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;align-content:start}
+#mtg .mp button{margin:0;padding:10px 6px;font-size:14px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mtg .vb.me{opacity:1;outline:3px solid #fff}
+@media (orientation:portrait){#mtg .mb{flex-direction:column}}
+#rot{display:none;position:fixed;inset:0;z-index:60;background:#0b0d14;color:#fff;align-items:center;justify-content:center;text-align:center;font-size:20px;padding:20px}
+@media (orientation:portrait) and (pointer:coarse){body.play #rot{display:flex}}
+#hud{left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right))}
+#joy{left:max(26px,env(safe-area-inset-left))}#btns{right:max(22px,env(safe-area-inset-right))}
+@media (max-height:520px){
+ body.play #btns{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);gap:6px;bottom:14px;right:max(14px,env(safe-area-inset-right))}
+ #btns button{width:68px!important;height:68px!important;font-size:12px;margin:0!important}
+ #joy{width:110px;height:110px;bottom:16px}#joy i{left:31px;top:31px}
+ #sstrip{right:170px!important;bottom:14px!important}
+ body.play #app.show.dd{max-height:calc(100dvh - 64px);width:min(340px,60vw)}
+}
+
 
 </style></head><body><canvas id=cv width=760 height=420 style="width:100%;border-radius:10px;background:#07090e;display:none"></canvas><div id=hud><div class=row><div class=card style="padding:6px 10px;margin:0;pointer-events:none"><b id=hrole></b> <span id=hlives class=alarm></span><div class=bar style="width:150px"><i id=hprog style="width:0"></i></div></div><div id=hban style="flex:1;text-align:center;pointer-events:none"></div><div style="white-space:nowrap"><button onclick="menuOpen=true;draw()">☰</button><button onclick="fs()">⛶</button></div></div><div id=toast style="text-align:center;margin-top:6px;pointer-events:none"></div></div>
 <div id=joy><i></i></div><canvas id=cam width=320 height=220 style="display:none;position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:4;border:2px solid #4f8cff;border-radius:8px;background:#000;pointer-events:none"></canvas>
 <div id=sstrip style="display:none;position:fixed;right:128px;bottom:24px;z-index:4"><button class=r style="display:block;width:96px;margin:4px 0" onpointerdown="event.preventDefault();sabGo('lights')">Lights</button><button class=r style="display:block;width:96px;margin:4px 0" onpointerdown="event.preventDefault();sabGo('comms')">Comms</button><button class=r style="display:block;width:96px;margin:4px 0" onpointerdown="event.preventDefault();sabGo('doors')">Doors</button><button class=r style="display:block;width:96px;margin:4px 0" onpointerdown="event.preventDefault();sabGo('reactor')">Reactor</button></div>
-<div id=btns><button id=sbtn style="display:none;width:78px;height:78px;background:#a31;font-size:12px" onpointerdown="event.preventDefault();sabToggle()">Sabotage</button><button class=r id=abtn onpointerdown="event.preventDefault();doAct()"></button><button id=ubtn onpointerdown="event.preventDefault();useIt()">Use</button></div><div id=lbar></div><div id=chat><div id=cl></div><div class=r2><input id=ci maxlength=120 placeholder="Type a message..." autocomplete=off><button id=cs>Send</button></div></div><div id=app></div><script>
-let art=localStorage.ss_art==='1',sstOpen=false,chatN=-1,menuOpen=false,mg=null,sm=false,vm=false,lastH='',S=null,G=sessionStorage.g,P=sessionStorage.p,off=0,es,lastMsg=0;const $=a=>document.getElementById(a);
+<div id=btns><button id=ibtn style="display:none;background:#7a3cc4" onpointerdown="event.preventDefault();act({a:'invis'})">Vanish</button><button id=sbtn style="display:none;width:78px;height:78px;background:#a31;font-size:12px" onpointerdown="event.preventDefault();sabToggle()">Sabotage</button><button class=r id=abtn onpointerdown="event.preventDefault();doAct()"></button><button id=ubtn onpointerdown="event.preventDefault();useIt()">Use</button></div><div id=lbar></div><div id=chat><div id=cl></div><div class=r2><input id=ci maxlength=120 placeholder="Type a message..." autocomplete=off><button id=cs>Send</button></div></div><div id=mtg><div class=mh><b id=mwho>Meeting</b><span><b id=mtime></b> · <span id=mvote class=m></span></span></div><div class=mb><div class=mc><div id=mcl></div><div class=r2><input id=mci maxlength=120 placeholder="Type a message..." autocomplete=off><button id=mcs>Send</button></div></div><div class=mp id=mpl></div></div></div><div id=rot>📱 Turn your phone sideways to play</div><div id=app></div><script>
+let art=localStorage.ss_art==='1',sstOpen=false,chatN=-1,menuOpen=false,mg=null,sm=false,vm=false,lastH='',S=null,G=sessionStorage.g,P=sessionStorage.p,off=0,es,lastMsg=0,cfgC=null,offSet=0,buf={},ldr=0;const $=a=>document.getElementById(a);
 const api=async o=>(await fetch('/',{method:'POST',body:JSON.stringify({g:G,p:P,...o})})).json();
 const act=o=>api({op:'act',...o});
 async function enter(op){if(matchMedia('(pointer:coarse)').matches)fs();const r=await (prof.name=$('n').value,sv(),api({op,name:prof.name,code:$('c')?.value,color:prof.c,hat:prof.h}));if(r.error)return alert(r.error);G=sessionStorage.g=r.g;P=sessionStorage.p=r.p;conn()}
-function conn(){if(es)es.close();es=new EventSource(`/events?g=${G}&p=${P}`);es.onmessage=e=>{S=JSON.parse(e.data);off=S.now-Date.now();draw()}}
+function conn(){if(es)es.close();es=new EventSource(`/events?g=${G}&p=${P}`);es.onmessage=e=>{const d=JSON.parse(e.data);if(d.cfg)cfgC=d.cfg;else d.cfg=cfgC;S=d;const o2=S.now-Date.now();off=offSet?off+(o2-off)*.1:o2;offSet=1;
+  const live={};for(const o of S.occ||[]){live[o.id]=1;const b=buf[o.id]||(buf[o.id]=[]);b.push({t:S.now,x:o.x,y:o.y});if(b.length>12)b.shift()}for(const k in buf)if(!live[k])delete buf[k];
+  const n=performance.now();if(n-ldr>90){ldr=n;draw()}}}
 function beep(){try{const a=new AudioContext(),o=a.createOscillator(),g=a.createGain();o.type='triangle';o.frequency.value=620;g.gain.value=.05;o.connect(g);g.connect(a.destination);o.start();setTimeout(()=>{o.stop();a.close()},450)}catch{}}
 const left=t=>Math.max(0,Math.ceil((t-(Date.now()+off))/1000));
 function tone(fs,type,start,dur,vol){try{const a=new AudioContext(),o=a.createOscillator(),g=a.createGain(),n=a.currentTime;o.type=type;o.connect(g);g.connect(a.destination);fs.forEach(([f,t])=>o.frequency.setValueAtTime(f,n+start+t));g.gain.setValueAtTime(vol,n+start);g.gain.exponentialRampToValueAtTime(.001,n+start+dur);o.start(n+start);o.stop(n+start+dur+.05);setTimeout(()=>a.close(),(start+dur+.3)*1000)}catch{}}
@@ -77,29 +101,17 @@ function draw(){if(!S)return;const m=S.me,A={set innerHTML(v){if(v!==lastH){last
  if(S.phase==='lobby'){lobby();return}
  const live=S.players.filter(p=>p.alive&&p.id!==m.id),imp=m.team==='imp',R=m.role,t=Date.now()+off;if(!m.near.vent)vm=false;const n=m.near,ub=m.alive&&(n.body||n.task||n.repair||n.btn||n.vent),ulabel=n.body?'Report body':n.task?'Use: '+m.tasks.find(k=>k.id===n.task).label:n.repair?'Use (repair)':n.btn?'Call meeting':n.vent?'Use (vent)':'Use',aLabel=imp?'Drain':R==='Medic'&&!m.healUsed?'Heal':R==='Guardian Angel'?'Protect':R==='Scout'?'Watch':'',acan=m.alive&&(imp?n.tgt&&!(t<m.atkCd||m.attacking||m.invis):R==='Medic'?n.tgt&&!m.healing:R==='Guardian Angel'?n.tgt&&!left(m.guardCd):R==='Scout'?!left(m.scoutCd)&&S.sab?.type!=='comms':false),acd=R==='Scout'?left(m.scoutCd):R==='Guardian Angel'?left(m.guardCd):0;
  const cd=(u,l,f,x='')=>`<button ${left(u)||!m.alive?'disabled':''} onclick="${f}">${l}${left(u)?' ('+left(u)+'s)':''}</button>`;
- let h=(menuOpen&&!S.meeting&&S.phase!=='over'?'<button class=r onclick="menuOpen=false;draw()">✕ Close menu</button>':'')+`<div class=card><b>${m.name}</b> — <b class=${imp?'alarm':'good'}>${R}</b> ${m.alive?'':'(eliminated – spectating)'}<br>Lives: <b>${'♥'.repeat(Math.max(0,m.lives))}</b> <span class=m>(only you can see this)</span>
- <div class=bar><i style="width:${S.progress[0]/S.progress[1]*100}%"></i></div><span class=m>Task progress ${S.progress[0]}/${S.progress[1]}</span></div>`;
- if(S.phase==='over'){h+=`<div class="card"><h3>${S.winner} win!</h3>${S.why}<br><br>${S.roles.map(r=>`${r[0]}: ${r[1]} (${r[2]}♥)`).join('<br>')}</div><button onclick="sessionStorage.clear();location.reload()">Back</button>`}
- else if(S.meeting){h+=`<div class=card><h3>Meeting — ${left(S.meeting.end)}s</h3><p class=m>${S.meeting.voted} votes cast. Your vote: ${S.meeting.mine?'cast':'none'}</p>${S.players.filter(p=>p.alive).map(p=>`<button ${m.alive&&!S.meeting.mine?'':'disabled'} onclick="act({a:'vote',target:'${p.id}'})">${p.name}</button>`).join('')}<button ${m.alive&&!S.meeting.mine?'':'disabled'} onclick="act({a:'vote',target:'skip'})">Skip</button></div>`}
- else{
-  if(S.sab)h+=`<div class="card sab"><b>SABOTAGE: ${S.sab.type.toUpperCase()}</b> ${S.sab.type==='reactor'?'— '+left(S.sab.end)+'s! '+S.sab.need+' players must hold repair together at Reactor':S.sab.type==='doors'?'('+S.sab.room+' locked)':'— repair at '+(S.sab.type==='lights'?'Electrical':'Communication')}${!imp&&['lights','comms','reactor'].includes(S.sab.type)?`<br>Stand on the red marker and press Use`:''}</div>`;
-  h+=`<div class=card><h3>📍 ${m.room}</h3>Here: ${S.occ.map(o=>o.name+(o.room?' @'+o.room:'')).join(', ')||'nobody'}<br><span class=m>WASD/arrows move · E = Use · Q = Drain/Heal</span><br><button onclick="toggleArt()">Map: ${art?'Original art':'Crisp drawn'}</button><br><button ${ub?'':'disabled'} onpointerdown="event.preventDefault();useIt()">${ulabel}</button>${aLabel?`<button class=r ${acan?'':'disabled'} onpointerdown="event.preventDefault();doAct()">${aLabel}${R!=='Scout'&&n.tgt?' '+n.tgt:''}${acd?' ('+acd+'s)':''}</button>`:''}
-  ${vm&&n.vent?'<br>Vent to: '+S.cfg.ventRooms.filter(r=>r!==m.room).map(r=>`<button class=g onclick="vent('${r}')">${r}</button>`).join(''):''}
-  </div>`;
-  h+=`<div class=card><h3>Tasks</h3>${m.tasks.map(k=>`<div>${k.done?'✅':'⬜'} ${k.kind}: ${k.name}${k.steps>1&&!k.done?' ('+(k.step+1)+'/'+k.steps+')':''} <span class=m>${k.done?'':k.label+' @'+k.room}${imp?' (fake)':''}</span> ${n.task===k.id?'<b class=good>◀ in range</b>':''}</div>`).join('')}${m.doing?'Working... '+left(m.doing)+'s':''}</div>`;
-  h+=`<div class=card><h3>Ability</h3>`;
-  if(imp){h+=`<br>${m.attacking?'Drain charging ('+left(m.attacking)+'s) - keep walking! ':''}${left(m.atkCd)?'Attack cooldown '+left(m.atkCd)+'s':''}<br>`;
-   if(R==='Phantom')h+=`<button ${m.invisUsed||m.invis?'disabled':''} onclick="act({a:'invis'})">Go invisible${m.invisUsed?' (used this round)':''}</button><br>`;
-   h+='Sabotage: '+['lights','comms','doors','reactor'].map(s=>cd(m.sabCd,s,`act({a:'sabotage',type:'${s}'})`)).join('')}
-  else if(R==='Scout')h+=(sm?'Watch which room? '+S.cfg.rooms.map(r=>`<button onclick="watch('${r}')">${r}</button>`).join(''):'Press Watch (Q) to pick a room. 5s look, 45s cooldown.')+(S.sab?.type==='comms'?'<br class=warn>Comms down!':'');
-  else if(R==='Guardian Angel')h+='Stand near a player and press Protect (20s shield, 45s cooldown).';
-  else if(R==='Medic')h+=m.healing?'Healing in progress ('+left(m.healing)+'s)':m.healUsed?'Heal used.':'Stand near a hurt player and press Heal (once per match, takes 45-60s).';
-  else h+='Vents available at Admin, Medbay, Engine, Reactor.';
-  h+='</div>'}
- h+=`<div class=card>${S.msgs.slice().reverse().map(x=>`<div class=${x.kind}>${x.text}</div>`).join('')}</div>`;A.innerHTML=h;hud(m,imp,R,n,ub,ulabel,aLabel,acan,acd)}
+ let h='';
+ const bar=`<div class=card><b>${esc(m.name)}</b> — <b class=${imp?'alarm':'good'}>${R}</b> <b class=alarm>${'♥'.repeat(Math.max(0,m.lives))}</b>${m.alive?'':' <span class=m>(out, spectating)</span>'}<div class=bar><i style="width:${S.progress[0]/S.progress[1]*100}%"></i></div><span class=m>Tasks ${S.progress[0]}/${S.progress[1]}</span></div>`;
+ if(S.phase==='over')h=bar+`<div class=card><h3>${S.winner} win!</h3>${S.why}<br><br>${S.roles.map(r=>`${esc(r[0])}: ${r[1]} (${r[2]}♥)`).join('<br>')}</div><button onclick="leave(true)">Back to start</button>`;
+ else if(S.meeting){}
+ else if(vm&&n.vent)h=`<div class=card><h3>Vent to...</h3>${S.cfg.ventRooms.filter(r=>r!==m.room).map(r=>`<button class=g onclick="vent('${r}')">${r}</button>`).join('')}<br><button onclick="vm=false;draw()">Cancel</button></div>`;
+ else if(sm)h=`<div class=card><h3>Watch which room?</h3>${S.cfg.rooms.map(r=>`<button onclick="watch('${r}')">${r}</button>`).join('')}<br><button onclick="sm=false;draw()">Cancel</button></div>`;
+ else if(menuOpen)h=`<button class=r onclick="menuOpen=false;draw()">✕ Close</button>`+bar+`<div class=card><h3>Tasks</h3>${m.tasks.map(k=>`<div>${k.done?'✅':'⬜'} ${k.name}${k.steps>1&&!k.done?' ('+(k.step+1)+'/'+k.steps+')':''} <span class=m>${k.done?'':k.label+' @'+k.room}${imp?' (fake)':''}</span>${n.task===k.id?' <b class=good>◀ here</b>':''}</div>`).join('')}</div><div class=card><button onclick="toggleArt()">Map: ${art?'Original art':'Crisp drawn'}</button><button class=r onclick="leave()">Leave game</button></div>`;
+ A.innerHTML=h;hud(m,imp,R,n,ub,ulabel,aLabel,acan,acd)}
 function closeMG(){if(mg){clearInterval(mg.iv);mg.el.remove();mg=null}}
 const COLS=['#e0525e','#4f8cff','#3ecf8e','#ffc857'];
-function renderMG(dg){if(!mg||mg.id!==dg.id||mg.type!==dg.type){closeMG();const el=document.createElement('div');el.style.cssText='position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9;user-select:none';document.body.appendChild(el);mg={id:dg.id,type:dg.type,el,sig:'',sel:null};
+function renderMG(dg){if(!mg||mg.id!==dg.id||mg.type!==dg.type){closeMG();const el=document.createElement('div');el.style.cssText='position:fixed;inset:0;background:#000a;display:flex;align-items:center;justify-content:center;z-index:9;overflow:auto;user-select:none';document.body.appendChild(el);mg={id:dg.id,type:dg.type,el,sig:'',sel:null};
   mg.iv=setInterval(()=>{const b=mg&&mg.el.querySelector('#pb');if(b&&mg.dg.type==='timed'){const f=Math.min(1,(Date.now()+off-mg.dg.start)/(mg.dg.end-mg.dg.start));b.style.width=f*100+'%';const gx=mg.el.querySelector('#gx');if(gx)gx.innerHTML=gfx(mg.dg.key+mg.dg.stp,f)}},80)}
  mg.dg=dg;const st=dg.state;
  if(dg.type==='fill'&&mg.el.firstChild){mg.el.querySelector('#pb').style.width=st.v+'%';return}
@@ -108,17 +120,29 @@ function renderMG(dg){if(!mg||mg.id!==dg.id||mg.type!==dg.type){closeMG();const 
  if(dg.type==='fill')b='<div class=bar style="height:18px"><i id=pb style="width:0"></i></div><br><button id=fh style="padding:16px 28px;font-size:16px">Hold to fill</button>';
  if(dg.type==='wires')b='<div style="display:flex;justify-content:space-between;gap:70px"><div>'+[0,1,2,3].map(i=>`<div><button ${st.done[i]?'disabled':''} style="background:${COLS[i]};width:64px;height:30px;outline:${mg.sel===i?'3px solid #fff':'none'}" onclick="mgL(${i})"></button></div>`).join('')+'</div><div>'+st.right.map((c,j)=>`<div><button ${st.done[c]?'disabled':''} style="background:${COLS[c]};width:64px;height:30px" onclick="mgR(${j})"></button></div>`).join('')+'</div></div><p class=m>Click a wire on the left, then its match on the right</p>';
  if(dg.type==='code')b='<p>Press in order: <b>'+st.seq.map((d,i)=>i<st.i?'✔':d+1).join(' → ')+'</b></p><div style="display:grid;grid-template-columns:repeat(3,64px);gap:6px;justify-content:center">'+[0,1,2,3,4,5,6,7,8].map(k=>`<button style="height:50px;font-size:18px" onclick="act({a:'tap',k:${k}})">${k+1}</button>`).join('')+'</div>';
- if(dg.type==='aim')b=`<p>Hits: ${st.n}/5</p><div onclick="mgAim(event)" style="position:relative;width:260px;height:260px;margin:auto;background:#0c0f16;border-radius:8px;cursor:crosshair"><div style="position:absolute;left:${st.x*2.6-26}px;top:${st.y*2.6-26}px;width:52px;height:52px;border-radius:50%;background:#ff5468;pointer-events:none"></div></div>`;
+ if(dg.type==='aim')b=`<p>Hits: ${st.n}/5</p><div onclick="mgAim(event)" style="position:relative;width:min(260px,52vh);height:min(260px,52vh);margin:auto;background:#0c0f16;border-radius:8px;cursor:crosshair"><div style="position:absolute;left:${st.x-10}%;top:${st.y-10}%;width:20%;height:20%;border-radius:50%;background:#ff5468;pointer-events:none"></div></div>`;
  mg.el.innerHTML=`<div class=card style="min-width:290px;text-align:center"><h3>${dg.name}</h3><p class=m>${dg.label}</p>${b}<br><button class=r onclick="act({a:'cancel'})">Cancel</button></div>`;
  const fh=mg.el.querySelector('#fh');if(fh){fh.onpointerdown=()=>act({a:'hold',on:1});fh.onpointerup=fh.onpointerleave=()=>act({a:'hold',on:0});mg.el.querySelector('#pb').style.width=st.v+'%'}}
 function mgL(i){mg.sel=i;renderMG(mg.dg)}
 function mgR(j){if(mg.sel!=null)act({a:'wire',l:mg.sel,r:j});mg.sel=null;renderMG(mg.dg)}
 function mgAim(e){const r=e.currentTarget.getBoundingClientRect();act({a:'aim',x:(e.clientX-r.left)/r.width*100,y:(e.clientY-r.top)/r.height*100})}
-function fs(){try{const e=document.documentElement;(e.requestFullscreen||e.webkitRequestFullscreen).call(e)}catch{}}
+function fs(){try{const e=document.documentElement;Promise.resolve((e.requestFullscreen||e.webkitRequestFullscreen).call(e)).then(()=>screen.orientation&&screen.orientation.lock&&screen.orientation.lock('landscape')).catch(()=>{})}catch{}}
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function sendChat(){const i=$('ci');if(i.value.trim())act({a:'chat',text:i.value});i.value='';i.focus()}
 $('cs').onclick=sendChat;$('ci').onkeydown=e=>{if(e.key==='Enter')sendChat()};
 function sabToggle(){sstOpen=!sstOpen;draw()}
+let mcN=-1,mSig='';
+function meetingUI(m){const el=$('mtg'),mt=S.meeting;el.classList.toggle('on',!!mt);if(!mt){mcN=-1;mSig='';return}
+ menuOpen=vm=sm=false;
+ const call=S.msgs.slice().reverse().find(x=>x.kind==='meeting');$('mwho').textContent=call?call.text:'Meeting';$('mtime').textContent=left(mt.end)+'s';$('mvote').textContent=mt.voted+' voted'+(mt.mine?' · you voted':'');
+ const c=mt.chat||[];if(c.length!==mcN){mcN=c.length;const l=$('mcl');l.innerHTML=c.map(x=>`<div><b style="color:${COL[x.c%12]}">${esc(x.n)}</b>: ${esc(x.x)}</div>`).join('')||'<span class=m>Discuss, then vote...</span>';l.scrollTop=l.scrollHeight}
+ $('mci').disabled=$('mcs').disabled=!m.alive;$('mci').placeholder=m.alive?'Type a message...':'Eliminated players cannot chat';
+ const can=m.alive&&!mt.mine,sig=JSON.stringify([mt.mine,m.alive,S.players.map(p=>p.id+(p.alive?1:0))]);
+ if(sig!==mSig){mSig=sig;$('mpl').innerHTML=S.players.filter(p=>p.alive).map(p=>`<button class="vb${mt.mine===p.id?' me':''}" ${can?'':'disabled'} style="border-left:8px solid ${COL[p.c%12]}" onclick="act({a:'vote',target:'${p.id}'})">${esc(p.name)}${p.id===m.id?' (you)':''}</button>`).join('')+`<button class="vb g${mt.mine==='skip'?' me':''}" style="grid-column:1/-1" ${can?'':'disabled'} onclick="act({a:'vote',target:'skip'})">Skip vote</button>`}}
+function sendMc(){const i=$('mci');if(i.value.trim())act({a:'chat',text:i.value});i.value='';i.focus()}
+$('mcs').onclick=sendMc;$('mci').onkeydown=e=>{if(e.key==='Enter')sendMc()};
+async function leave(skip){if(!skip&&!confirm('Leave this game?'))return;try{if(es)es.close();await api({op:'leave'})}catch{}sessionStorage.clear();location.reload()}
+
 function sabGo(t){sstOpen=false;act({a:'sabotage',type:t});draw()}
 function chatUI(c,en,lc){const el=$('chat');if(!c){el.style.display='none';chatN=-1;return}el.style.display='flex';el.classList.toggle('lc',!!lc);
  if(c.length!==chatN){chatN=c.length;const l=$('cl');l.innerHTML=c.map(x=>`<div><b style="color:${COL[x.c%12]}">${esc(x.n)}</b>: ${esc(x.x)}</div>`).join('')||'<span class=m>Say something...</span>';l.scrollTop=l.scrollHeight}$('ci').disabled=$('cs').disabled=!en}
@@ -129,8 +153,8 @@ function pv(cur){const c=$('pv');if(!c)return;const x=c.getContext('2d');x.clear
 function homeP(k,v){prof[k]=v;sv();$('pk').innerHTML=pickers(prof,[],'homeP');pv(prof)}
 function lobP(k,v){api({op:'profile',[k==='c'?'color':'hat']:v})}
 function lobby(){const bar=$('lbar'),sig=JSON.stringify([S.code,S.players.length,S.host]);
- if(bar.dataset.s!==sig){bar.dataset.s=sig;bar.innerHTML=`<div class=card style="margin:0;text-align:center;padding:8px 14px"><span class=m>Game code</span> <b style="font-size:28px;letter-spacing:6px">${S.code}</b><br><span class=m>${S.players.length} players, ${S.cfg.min} needed (max 8)</span><br>${S.host?`<button ${S.players.length<S.cfg.min?'disabled':''} onclick="api({op:'start'})">Start game</button>`:'<span class=m>Waiting for the host to start</span>'}<button onclick="menuOpen=!menuOpen;draw()">Customize</button></div>`}
- const me=S.players.find(p=>p.id===S.me.id)||{c:0,h:0},app=$('app'),html=menuOpen?'<button class=r onclick="menuOpen=false;draw()">Close</button><h3>Customize</h3><div id=pk>'+pickers(me,S.players.filter(p=>p.id!==me.id).map(p=>p.c),'lobP')+'</div>':'';
+ if(bar.dataset.s!==sig){bar.dataset.s=sig;bar.innerHTML=`<div class=card style="margin:0;text-align:center;padding:8px 14px"><span class=m>Game code</span> <b style="font-size:28px;letter-spacing:6px">${S.code}</b><br><span class=m>${S.players.length} players, ${S.cfg.min} needed (max 8)</span><br>${S.host?`<button ${S.players.length<S.cfg.min?'disabled':''} onclick="api({op:'start'})">Start game</button>`:'<span class=m>Waiting for the host to start</span>'}<button onclick="menuOpen=!menuOpen;draw()">Menu</button></div>`}
+ const me=S.players.find(p=>p.id===S.me.id)||{c:0,h:0},app=$('app'),html=menuOpen?'<button class=r onclick="menuOpen=false;draw()">Close</button><h3>Customize</h3><div id=pk>'+pickers(me,S.players.filter(p=>p.id!==me.id).map(p=>p.c),'lobP')+'</div><button class=r onclick="leave()">Leave game</button>':'';
  app.classList.toggle('show',menuOpen);app.classList.add('dd');app.classList.remove('mt');const s2=html+S.players.map(p=>p.c+':'+p.h).join();
  if(app.dataset.s!==s2){app.dataset.s=s2;app.innerHTML=html;if(menuOpen)pv(me)}chatUI(S.lchat||[],true,1)}
 function gfx(k,p){const P=Math.round(p*100),sv2=x=>`<svg viewBox="0 0 240 90" width="240">${x}</svg>`,txt=(x,y,t,c)=>`<text x="${x}" y="${y}" fill="${c||'#e8ecf4'}" font-size="12" text-anchor="middle">${t}</text>`;
@@ -142,10 +166,11 @@ function gfx(k,p){const P=Math.round(p*100),sv2=x=>`<svg viewBox="0 0 240 90" wi
  if(k==='power0'||k==='power1'){const f=Math.sin(p*40)>-.3?1:.4;return sv2(`<rect x="70" y="20" width="100" height="50" rx="6" fill="#1b2236" stroke="#8b95aa"/><rect x="74" y="24" width="${92*p}" height="42" fill="#ffc857"/><rect x="170" y="36" width="8" height="18" fill="#8b95aa"/><polygon points="125,22 108,48 120,48 114,68 136,40 124,40" fill="#fff" opacity="${f}"/>${txt(120,86,P+'%')}`)}
  return ''}
 function hud(m,imp,R,n,ub,ul,al,acan,acd){const sb=$('sbtn'),show=imp&&m.alive&&S.phase==='play'&&!S.meeting,cdl=left(m.sabCd),can=show&&!cdl&&!S.sab;sb.style.display=show?'block':'none';sb.disabled=!can;sb.textContent=S.sab&&show?'Active':'Sabotage'+(cdl?' '+cdl+'s':'');if(!can)sstOpen=false;$('sstrip').style.display=sstOpen?'block':'none';
- const mt=!!S.meeting;if(mt)chatUI(S.meeting.chat||[],m.alive,0);else chatUI(null);$('app').classList.toggle('mt',mt);$('app').classList.toggle('dd',!mt&&S.phase!=='over');
- $('app').classList.toggle('show',!!(menuOpen||S.meeting||S.phase==='over'||vm||sm));
+ const mt=!!S.meeting;chatUI(null);meetingUI(m);$('app').classList.toggle('mt',mt);$('app').classList.toggle('dd',!mt&&S.phase!=='over');
+ $('app').classList.toggle('show',!!(!S.meeting&&(menuOpen||S.phase==='over'||vm||sm)));
  $('hrole').textContent=m.role+(m.alive?'':' (out)');$('hlives').textContent='♥'.repeat(Math.max(0,m.lives));$('hprog').style.width=S.progress[0]/S.progress[1]*100+'%';
  const u=$('ubtn'),a=$('abtn');u.textContent=ul.replace('Use: ','');u.disabled=!ub;a.style.display=al?'block':'none';a.textContent=al+(acd?' '+acd:'');a.disabled=!acan;
+ {const ib=$('ibtn');ib.style.display=R==='Phantom'&&m.alive&&S.phase==='play'&&!S.meeting?'block':'none';ib.disabled=!!(m.invisUsed||m.invis);ib.textContent=m.invis?'Hidden '+left(m.invis)+'s':m.invisUsed?'Vanish (used)':'Vanish'}
  $('hban').innerHTML=S.sab?`<b class=sab>⚠ ${S.sab.type.toUpperCase()}${S.sab.type==='reactor'?' '+left(S.sab.end)+'s':''}</b>`:'';
  $('toast').innerHTML=S.msgs.filter(x=>Date.now()+off-x.t<7000).slice(-3).map(x=>`<div class=${x.kind} style="text-shadow:0 1px 3px #000">${x.text}</div>`).join('')}
 const jy=$('joy'),jk=jy.firstChild;let jid=null;
@@ -210,10 +235,28 @@ function body(o,t,alpha,X,z){X=X||cx;z=z||.72;const col=COL[o.c%12],sw=o.mv?Math
  if(o.name){X.fillStyle='#fff';X.font='bold 15px sans-serif';X.textAlign='center';X.strokeStyle='#000';X.lineWidth=4;X.strokeText(o.name,0,36);X.fillText(o.name,0,36)}X.restore()}
 const BG=new Image();if(art)BG.src='/map?v=2';
 function toggleArt(){art=!art;localStorage.ss_art=art?1:0;if(art&&!BG.src)BG.src='/map?v=2';lastH='';draw()}
+let pr={id:null,x:0,y:0,f:1,mv:0},lastF=0;const INTERP=120;
+const inRc=(r,x,y)=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3];
+function roomAtC(x,y){const R=S.cfg.map.ROOMS;for(const k in R)if(inRc(R[k],x,y))return k;return'Hallway'}
+function canWalk(x,y){const M=S.cfg.map,w=(a,b)=>M.walk.some(r=>inRc(r,a,b))&&!M.block.some(r=>inRc(r,a,b));
+ return [[0,0],[5,0],[-5,0],[0,5],[0,-5]].every(([a,b])=>w(x+a,y+b))&&(S.phase!=='lobby'||roomAtC(x,y)==='Cafeteria')&&!(S.sab&&S.sab.type==='doors'&&roomAtC(x,y)===S.sab.room&&S.me.room!==S.sab.room)}
 function frame(){requestAnimationFrame(frame);if(!S||!S.me||S.me.x==null){cv.style.display='none';return}cv.style.display='block';
  const dpr=Math.min(2,devicePixelRatio||1),cw=Math.round(innerWidth*dpr),ch=Math.round(innerHeight*dpr);if(cv.width!==cw||cv.height!==ch){cv.width=cw;cv.height=ch}
  const m=S.me,M=S.cfg.map,W=cv.width,H=cv.height,sc=H/400,t=Date.now(),L=[{id:m.id,name:m.name,x:m.x,y:m.y,c:m.c,h:m.hat,me:1},...S.occ];
- for(const o of L){const p=pos[o.id]||(pos[o.id]={x:o.x,y:o.y});const d=Math.hypot(o.x-p.x,o.y-p.y);if(Math.abs(o.x-p.x)>.5)p.f=o.x>p.x?1:-1;o.f=p.f||1;p.x+=(o.x-p.x)*.3;p.y+=(o.y-p.y)*.3;o.dx=p.x;o.dy=p.y;o.mv=d>1}
+ const ft=Math.min(.1,(t-(lastF||t))/1000);lastF=t;
+ if(S.meeting&&ld!=='0,0'){ld='0,0';keys={}}
+ { // self: predict locally with the same collision as the server, reconcile gently
+  if(pr.id!==m.id)pr={id:m.id,x:m.x,y:m.y,f:1,mv:0};
+  const[ix,iy]=ld.split(',').map(Number),il=Math.max(1,Math.hypot(ix,iy)),can=m.alive&&!S.meeting&&S.phase!=='over'&&!(S.reveal>t+off);
+  pr.mv=0;if(can&&(ix||iy)){const dx=ix/il*S.cfg.speed*ft,dy=iy/il*S.cfg.speed*ft;if(canWalk(pr.x+dx,pr.y))pr.x+=dx;if(canWalk(pr.x,pr.y+dy))pr.y+=dy;pr.mv=1;if(Math.abs(dx)>.01)pr.f=dx>0?1:-1}
+  const er=Math.hypot(m.x-pr.x,m.y-pr.y);if(er>300){pr.x=m.x;pr.y=m.y}else if(pr.mv?er>140:er>.3){const k=1-Math.exp(-ft*(pr.mv?6:16));pr.x+=(m.x-pr.x)*k;pr.y+=(m.y-pr.y)*k}
+  L[0].dx=pr.x;L[0].dy=pr.y;L[0].mv=pr.mv;L[0].f=pr.f}
+ { // others: render slightly in the past and interpolate between real snapshots
+  const rt=t+off-INTERP;
+  for(const o of L.slice(1)){const b=buf[o.id]||[];let a=b[0],c=b[b.length-1];
+   for(let i=b.length-1;i>0;i--)if(b[i-1].t<=rt){a=b[i-1];c=b[i];break}
+   let x=o.x,y=o.y;if(b.length){if(rt>=c.t){x=c.x;y=c.y}else if(rt<=a.t){x=a.x;y=a.y}else{const f=(rt-a.t)/(c.t-a.t);x=a.x+(c.x-a.x)*f;y=a.y+(c.y-a.y)*f}}
+   const p=pos[o.id]||(pos[o.id]={x,y,f:1});if(Math.abs(x-p.x)>.3)p.f=x>p.x?1:-1;o.mv=Math.hypot(x-p.x,y-p.y)>.6;p.x=x;p.y=y;o.f=p.f;o.dx=x;o.dy=y}}
  cx.setTransform(1,0,0,1,0,0);cx.fillStyle='#000';cx.fillRect(0,0,W,H);cx.setTransform(sc,0,0,sc,W/2-L[0].dx*sc,H/2-L[0].dy*sc);
  if(art){if(BG.complete)cx.drawImage(BG,0,0,1254,1254)}else drawMap(cx,M);
  {const b=M.btn;cx.save();cx.shadowColor='#f45';cx.shadowBlur=m.near.btn?32:14;cx.fillStyle='#d62233';cx.beginPath();cx.arc(b[0],b[1],11,0,7);cx.fill();cx.lineWidth=3;cx.strokeStyle='#fff';cx.stroke();cx.restore();cx.fillStyle='#fff';cx.font='bold 13px sans-serif';cx.textAlign='center';cx.fillText('!',b[0],b[1]+5);cx.font='bold 9px sans-serif';cx.fillText('EMERGENCY',b[0],b[1]-16)}
