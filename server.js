@@ -8,16 +8,22 @@ const CFG={minP:3,maxP:8,lives:3,
  guardBlockConsumesAttack:true,medicCanSelf:false,medicCapAtMax:true,ventCooldown:0,
  sabCd:30,reactorTime:45,reactorRepairers:2,reactorHoldTime:3,lightsDur:40,commsDur:40,doorsDur:15,
  meetingTime:75,endMeetingWhenAllVoted:true,meetingsPerPlayer:1,meetingPausesTimers:true,revealImposterOnVote:false,
- roleAssignment:'random',revealTime:7,drainLeash:0};
+ roleAssignment:'random',revealTime:7,ejectTime:5,drainLeash:0,
+ influencerChance:.1,influencerMax:1,influencerCd:45,influencerUses:3,influencerPositive:.35};
+// influencerChance = each crewmate's chance of being the Influencer (capped at influencerMax per game)
+// influencerPositive = chance a hint reveals the Imposter's real item; otherwise it names a random item the Imposter is NOT wearing (hints are always true)
+// ejectTime = seconds the "voted out" animation plays after voting ends (role is never revealed).
 // revealTime = seconds everyone is frozen while the role-reveal screen plays.
 // drainLeash = max px between imposter and target before a drain breaks (0 = off: you can walk away freely while it charges).
 // ---- MAP (pixel coords of map.jpg, 1254x1254) ----
 const ROOMS={Reactor:[30,50,310,325],Weapons:[905,35,235,230],Cafeteria:[435,255,365,310],Navigation:[997,345,240,325],Electrical:[235,570,260,295],Shields:[55,940,240,250],Engines:[360,930,470,220],Communication:[880,800,350,340]};
-const WALK=[[45,70,285,310],[325,130,600,50],[915,50,220,205],[910,248,40,142],[785,355,225,50],[1005,360,215,295],[450,270,340,280],[325,355,135,50],[598,545,45,415],[250,590,230,260],[470,712,355,45],[775,622,235,45],[778,625,47,385],[375,945,445,195],[815,960,80,50],[890,815,325,315],[1025,650,42,175],[155,375,45,590],[70,955,215,220],[280,1022,105,52]];
+// Every hallway is HW px wide, so every room entrance is the same size (HW).
+const HW=90;
+const WALK=[[45,70,285,310],[325,110,600,HW],[915,50,220,205],[938,248,HW,112],[785,335,225,HW],[1005,360,215,295],[450,270,340,280],[325,335,135,HW],[576,545,HW,415],[250,590,230,260],[470,690,355,HW],[775,600,235,HW],[757,600,HW,410],[375,945,445,195],[815,940,80,HW],[890,815,325,315],[1001,650,HW,175],[133,375,HW,590],[70,955,215,220],[280,1003,105,HW]];
 const SH=14,BLOCK=[[130,55,115,225],[38,60,45,300],[497,325,95,80],[651,325,95,80],[497,430,95,80],[651,430,95,80],[1030,420,135,150],[250,640,150,100],[470,990,215,90],[980,895,130,130],[128,1018,100,100],[965,105,105,105]].map(([x,y,w,h])=>[x+SH,y+SH,Math.max(8,w-2*SH),Math.max(8,h-2*SH)]);
 const HALLS=[1,3,4,7,8,10,11,12,14,16,17,19].map(i=>WALK[i]),ovl=(a,b)=>a[0]<b[0]+b[2]&&a[0]+a[2]>b[0]&&a[1]<b[1]+b[3]&&a[1]+a[3]>b[1];
 // block the empty corners of each octagonal room (the art has diagonal cut corners)
-for(const k in ROOMS){const[x,y,w,h]=ROOMS[k];for(const[sx,sy]of[[0,0],[1,0],[0,1],[1,1]])for(const[u0,u1,v0,v1]of[[0,15,0,31],[15,30,0,16]]){const r=[sx?x+w-u1:x+u0,sy?y+h-v1:y+v0,u1-u0,v1-v0];if(!HALLS.some(q=>ovl(r,[q[0]-30,q[1]-30,q[2]+60,q[3]+60])))BLOCK.push(r)}}
+for(const k in ROOMS){const[x,y,w,h]=ROOMS[k];for(const[sx,sy]of[[0,0],[1,0],[0,1],[1,1]])for(const[u0,u1,v0,v1]of[[0,15,0,31],[15,30,0,16]]){const r=[sx?x+w-u1:x+u0,sy?y+h-v1:y+v0,u1-u0,v1-v0];if(!HALLS.some(q=>ovl(r,q)))BLOCK.push(r)}}
 const STAT={Reactor:[150,330],Weapons:[990,235],Cafeteria:[560,535],Navigation:[1040,620],Electrical:[300,800],Shields:[120,1145],Engines:[450,1110],Communication:[980,1090]};
 const REP={Electrical:[400,800],Communication:[930,950],Reactor:[290,250]};
 const VENT={Reactor:[265,330],Weapons:[1085,230],Cafeteria:[525,530],Navigation:[1135,625],Electrical:[335,820],Shields:[265,1120],Engines:[740,1105],Communication:[925,1060]};
@@ -25,7 +31,7 @@ const VENTS=Object.keys(VENT),BTN=[621,276]; // emergency button on the Cafeteri
 const inR=(r,x,y)=>x>=r[0]&&x<=r[0]+r[2]&&y>=r[1]&&y<=r[1]+r[3];
 const walk=(x,y)=>WALK.some(r=>inR(r,x,y))&&!BLOCK.some(r=>inR(r,x,y));
 const roomAt=(x,y)=>{for(const k in ROOMS)if(inR(ROOMS[k],x,y))return k;return'Hallway'};
-const SPEED=190,dst=(p,x,y)=>Math.hypot(p.x-x,p.y-y);
+const SPEED=190,canStand=(g,p,x,y)=>[[0,0],[5,0],[-5,0],[0,5],[0,-5]].every(([a,b])=>walk(x+a,y+b))&&(g.phase!=='lobby'||roomAt(x,y)==='Cafeteria')&&!(g.sab&&g.sab.type==='doors'&&roomAt(x,y)===g.sab.room&&p.room!==g.sab.room),dst=(p,x,y)=>Math.hypot(p.x-x,p.y-y);
 const stOf=k=>ST[TASKS[k.key].steps[k.step].st],inRange=(p,k)=>{const q=stOf(k);return dst(p,q[1],q[2])<=q[3]+40};
 const repPos=k=>REP[k],ventPos=k=>VENT[k];
 const nearest=(g,p)=>{let b=null,bd=CFG.actionRange;for(const q of S(g))if(q.id!==p.id&&q.alive){const d=dst(p,q.x,q.y);if(d<bd){bd=d;b=q}}return b};
@@ -65,14 +71,34 @@ const TASKS={
  _comms:{name:'Restore comms',kind:'Sabotage',steps:[T1('sabCo','dial',1,'Tune the signal')]},
  _reactor:{name:'Stabilize reactor',kind:'Sabotage',steps:[T1('sabRe','hold2',0,'Hold the stabilizer')]}};
 const LONG=['fuel','data','coolant','course'],COMMON=['wires','dish','breakers'],SHORT=['shields','table','scan','turret','filter','trash','antenna'],SHORT2=['power','life','uplink','purge'];
+// wardrobe: hat, glasses (gl), pet (pt), held item (hd). Index 0 is always "None".
+const ITEMS={hat:['None','Cap','Top hat','Crown','Beanie','Cowboy','Headband','Party'],gl:['None','Round glasses','Shades','Visor','Monocle','Star glasses'],pt:['None','Cat','Dog','Duck','Robot','Slime'],hd:['None','Balloon','Sword','Umbrella','Flag','Wrench','Coffee']};
+const HINTTXT={hat:{p:n=>'The Imposter IS wearing: '+n,p0:'The Imposter wears no hat',n:n=>'The Imposter is NOT wearing: '+n,n0:'The Imposter is wearing a hat'},
+ gl:{p:n=>'The Imposter IS wearing: '+n,p0:'The Imposter wears no glasses',n:n=>'The Imposter is NOT wearing: '+n,n0:'The Imposter is wearing glasses'},
+ pt:{p:n=>'The Imposter has this pet: '+n,p0:'The Imposter has no pet',n:n=>'The Imposter does NOT have this pet: '+n,n0:'The Imposter has a pet'},
+ hd:{p:n=>'The Imposter IS holding: '+n,p0:'The Imposter holds nothing',n:n=>'The Imposter is NOT holding: '+n,n0:'The Imposter is holding something'}};
+// ghosts (dead crew) can still walk and do tasks, nothing else
+const GHOST_OK=['task','wire','hold','aim','tap','sw','clean','mash','dial','ord','cancel'];
 function fixSab(g,ty){if(g.sab&&g.sab.type===ty){g.sab=null;pub(g,{lights:'Lights restored!',comms:'Comms restored!',reactor:'Reactor stabilized!'}[ty],'good')}}
 const CREW=['Engineer','Scout','Guardian Angel','Medic'],IMPS=['Regular Imposter','Phantom'];
-const ROLE_ASSIGNERS={random:(n)=>{const r=[];const pool=sh([...CREW]);for(let i=0;i<n-1;i++)r.push(pool[i%4]);return{imp:IMPS[rnd(0,2)|0],crew:sh(r)}}};
-function step(g,dt){if((g.phase!=='play'&&g.phase!=='lobby')||g.meeting||now()<(g.revealEnd||0))return;
- for(const p of S(g)){if(!p.alive||!(p.dx||p.dy))continue;
-  const ok=(x,y)=>[[0,0],[5,0],[-5,0],[0,5],[0,-5]].every(([a,b])=>walk(x+a,y+b))&&(g.phase!=='lobby'||roomAt(x,y)==='Cafeteria')&&!(g.sab&&g.sab.type==='doors'&&roomAt(x,y)===g.sab.room&&p.room!==g.sab.room);
-  const nx=p.x+p.dx*SPEED*dt,ny=p.y+p.dy*SPEED*dt;if(ok(nx,p.y))p.x=nx;if(ok(p.x,ny))p.y=ny;
-  const r=roomAt(p.x,p.y);if(r&&r!==p.room)go(g,p,r);if(p.doing&&!inRange(p,p.doing.task))p.doing=null}}
+const ROLE_ASSIGNERS={random:(n)=>{const r=[];const pool=sh([...CREW]);let inf=0;for(let i=0;i<n-1;i++){if(inf<CFG.influencerMax&&Math.random()<CFG.influencerChance){r.push('Influencer');inf++}else r.push(pool[i%4])}return{imp:IMPS[rnd(0,2)|0],crew:sh(r)}}};
+// Walking is client-authoritative: the client simulates its own movement and sends its position;
+// the server only validates it (same collision, speed limit, no walking through walls) and never
+// drags a player back unless the move was actually illegal or the server teleported them (vent / start).
+function step(g,dt){}
+function setPos(g,p,d,t){
+ if(p.left||g.meeting||t<(g.revealEnd||0)||(g.phase!=='play'&&g.phase!=='lobby'))return;
+ if((+d.tp||0)!==(p.tp||0))return;            // stale message from before a teleport
+ if(!(+d.n>(p.pn||0)))return;p.pn=+d.n;        // out-of-order / duplicate message
+ const x=+d.x,y=+d.y;if(!isFinite(x)||!isFinite(y))return;
+ const dtS=Math.min(.6,Math.max(.05,(t-(p.pt||t-100))/1000));p.pt=t;
+ const dd=Math.hypot(x-p.x,y-p.y);
+ if(dd<.01)return;
+ let ok=dd<=SPEED*1.6*dtS+30&&canStand(g,p,x,y);
+ for(let i=1;ok&&i<dd/6;i++){const f=i*6/dd;ok=canStand(g,p,p.x+(x-p.x)*f,p.y+(y-p.y)*f)} // no tunnelling through thin walls
+ if(!ok){p.tp=(p.tp||0)+1;return}              // illegal: tell the client to snap back to the last good spot
+ p.x=x;p.y=y;
+ const r=roomAt(p.x,p.y);if(r&&r!==p.room)go(g,p,r);if(p.doing&&!inRange(p,p.doing.task))p.doing=null}
 const sh=a=>a.sort(()=>Math.random()-.5),rnd=(a,b)=>a+Math.random()*(b-a),now=()=>Date.now(),id=()=>Math.random().toString(36).slice(2,10);
 const G={};
 const S=(g)=>Object.values(g.players),imp=g=>g.players[g.imp];
@@ -86,36 +112,42 @@ function check(g){if(g.phase==='over'||g.phase==='lobby')return;
  const T=crew.filter(p=>!p.left).flatMap(p=>p.tasks);if(T.every(t=>t.done))end(g,'Crewmates','All tasks completed')}
 function advance(g,p,k){k.step++;const n=TASKS[k.key].steps.length;if(k.step>=n){k.done=true;msg(g,p,'Task complete: '+k.name,'good')}else msg(g,p,k.name+': part '+k.step+' of '+n+' done. Next: '+TASKS[k.key].steps[k.step].label,'good')}
 const NCOL=12;
-function setProf(g,p,color,hat){if(Number.isInteger(hat)&&hat>=0&&hat<8)p.hat=hat;else if(p.hat==null)p.hat=0;
+function setProf(g,p,color,hat,gl,pt,hd){const set=(k,v)=>{if(Number.isInteger(v)&&v>=0&&v<ITEMS[k].length)p[k]=v;else if(p[k]==null)p[k]=0};set('hat',hat);set('gl',gl);set('pt',pt);set('hd',hd);
  const taken=new Set(S(g).filter(q=>q!==p).map(q=>q.c));
  if(Number.isInteger(color)&&color>=0&&color<NCOL&&!taken.has(color))p.c=color;else if(p.c==null||taken.has(p.c))p.c=[...Array(NCOL).keys()].find(i=>!taken.has(i))}
 function lose(g,p,nb){p.lives--;msg(g,p,'ALARM: you lost a life!','alarm');
- if(p.lives<=0){p.alive=false;p.doing=null;if(!nb)(g.bodies=g.bodies||[]).push({name:p.name,c:p.c,hat:p.hat,x:p.x,y:p.y});pub(g,p.name+' was eliminated.','elim');if(g.attack&&g.attack.target===p.id&&CFG.cancelAttackIfTargetInvalid)g.attack=null}}
+ if(p.lives<=0){p.alive=false;p.doing=null;p.heal=null;if(!nb)(g.bodies=g.bodies||[]).push({name:p.name,c:p.c,hat:p.hat,gl:p.gl,pt:p.pt,hd:p.hd,x:p.x,y:p.y});pub(g,p.name+' was eliminated.','elim');if(g.attack&&g.attack.target===p.id&&CFG.cancelAttackIfTargetInvalid)g.attack=null}}
 function start(g){const ids=Object.keys(g.players),n=ids.length;
  const a=ROLE_ASSIGNERS[CFG.roleAssignment](n);g.imp=ids[rnd(0,n)|0];let k=0;
  const common=COMMON[rnd(0,COMMON.length)|0];
- for(const i of ids){const p=g.players[i];p.lives=CFG.lives;p.alive=true;p.room='Cafeteria';p.x=621+(p.c-3.5)*20;p.y=318;p.dx=p.dy=0;p.msgs=[];p.invisUsed=false;p.healUsed=false;p.atkCd=0;p.scoutCd=0;p.guardCd=0;p.meetings=0;
+ for(const i of ids){const p=g.players[i];p.lives=CFG.lives;p.alive=true;p.room='Cafeteria';p.x=621+(p.c-3.5)*20;p.y=318;p.dx=p.dy=0;p.tp=(p.tp||0)+1;p.msgs=[];p.invisUsed=false;p.healUsed=false;p.atkCd=0;p.scoutCd=0;p.guardCd=0;p.meetings=0;p.hintCd=0;p.hintsLeft=CFG.influencerUses;
   p.team=i===g.imp?'imp':'crew';p.role=i===g.imp?a.imp:a.crew[k++];
   const mk=key=>({id:id(),key,name:TASKS[key].name,kind:TASKS[key].kind,step:0,done:false,fake:p.team==='imp'});const L2=sh([...LONG]),S1=sh([...SHORT]),S2=sh([...SHORT2]);p.tasks=[mk(common),mk(L2[0]),mk(L2[1]),mk(S2[0]),mk(S1[0]),mk(S1[1])]}
- g.revealEnd=now()+CFG.revealTime*1000;g.phase='play';g.attack=null;g.sab=null;g.sabCd=g.revealEnd+CFG.sabCd*1000;g.meeting=null;g.winner=null}
-function setAtkTimer(g,target){const r=CFG.attackRanges[target.lives];return rnd(r[0],r[1])*1000}
-function resolveMeeting(g){const m=g.meeting,t=now(),tally={};let skip=0;
+ g.revealEnd=now()+CFG.revealTime*1000;g.phase='play';g.attack=null;g.sab=null;g.sabCd=g.revealEnd+CFG.sabCd*1000;g.meeting=null;g.winner=null;g.hint=null}
+function setAtkTimer(g,target){const r=CFG.attackRanges[Math.min(3,Math.max(1,target.lives))];return rnd(r[0],r[1])*1000}
+function tallyMeeting(g,t){const m=g.meeting,tally={};let skip=0;
  for(const v of Object.values(m.votes))v==='skip'?skip++:tally[v]=(tally[v]||0)+1;
  const top=Math.max(0,...Object.values(tally)),w=Object.keys(tally).filter(k=>tally[k]===top);
- if(top>0&&w.length===1&&top>skip){const p=g.players[w[0]];pub(g,p.name+' received the most votes.','vote');
+ const win=top>0&&w.length===1&&top>skip?g.players[w[0]]:null;
+ m.result={target:win?win.id:null,name:win?win.name:'',c:win?win.c:0,h:win?win.hat:0,end:t+CFG.ejectTime*1000}}
+function resolveMeeting(g){const m=g.meeting,t=now(),tally={};let skip=0;
+ const d=t-m.start;if(CFG.meetingPausesTimers){if(g.attack){g.attack.end+=d;g.attack.start+=d}if(g.sab)g.sab.end+=d;g.sabCd+=d;S(g).forEach(p=>{if(p.heal)p.heal.end+=d;if(p.invisEnd)p.invisEnd+=d;if(p.guard>m.start)p.guard+=d;if(p.obs)p.obs.end+=d;for(const k of['atkCd','guardCd','scoutCd','hintCd'])if(p[k]>m.start)p[k]+=d})}
+ for(const v of Object.values(m.votes))v==='skip'?skip++:tally[v]=(tally[v]||0)+1;
+ const top=Math.max(0,...Object.values(tally)),w=Object.keys(tally).filter(k=>tally[k]===top);
+ if(m.result&&m.result.target){const p=g.players[m.result.target];pub(g,p.name+' received the most votes.','vote');
   lose(g,p,1);if(p.team==='imp'){imp(g).atkCd=Math.max(imp(g).atkCd,t)+CFG.votePenalty*1000;
    if(CFG.revealImposterOnVote)pub(g,p.name+' WAS the Imposter.','vote')}
   else if(CFG.revealImposterOnVote)pub(g,p.name+' was not the Imposter.','vote')}
  else pub(g,'No one received a decisive vote. Nobody loses a life.','vote');
- const d=t-m.start;if(CFG.meetingPausesTimers){if(g.attack){g.attack.end+=d;g.attack.start+=d}if(g.sab)g.sab.end+=d;g.sabCd+=d;S(g).forEach(p=>{if(p.heal)p.heal.end+=d;if(p.invisEnd)p.invisEnd+=d})}
  S(g).forEach(p=>p.invisUsed=false);g.meeting=null;check(g)}
 function tick(g){const t=now();if(g.phase==='meeting_dummy')return;
  if(g.phase==='play'&&g.meeting){const m=g.meeting;const al=S(g).filter(p=>p.alive&&(p.res||t-(p.dropAt||0)<8000)); // dropped connections stop blocking the meeting after an 8s grace
-  if(t>=m.end||(CFG.endMeetingWhenAllVoted&&al.every(p=>m.votes[p.id])))resolveMeeting(g);return}
+  if(m.result){if(t>=m.result.end)resolveMeeting(g);return}
+  if(t>=m.end||(CFG.endMeetingWhenAllVoted&&al.every(p=>m.votes[p.id])))tallyMeeting(g,t);return}
  if(g.phase!=='play')return;
  if(g.attack&&CFG.drainLeash){const v0=g.players[g.attack.target];if(!v0||dst(imp(g),v0.x,v0.y)>CFG.drainLeash){msg(g,imp(g),'Target slipped away - drain broken','warn');g.attack=null}}
  const a=g.attack;if(a&&t>=a.end){g.attack=null;const v=g.players[a.target],im=imp(g);
-  if(v.alive){if(v.guard>t){msg(g,g.players[v.guardBy],'Your protection blocked a life-drain!','good');if(CFG.guardBlockConsumesAttack)im.atkCd=t+CFG.attackCooldown*1000}
+  if(v.alive){if(v.guard>t){msg(g,g.players[v.guardBy],'Your protection blocked a life-drain!','good');v.guard=0;if(CFG.guardBlockConsumesAttack)im.atkCd=t+CFG.attackCooldown*1000}
    else{lose(g,v);im.atkCd=t+CFG.attackCooldown*1000}}}
  S(g).forEach(p=>{if(p.invisEnd&&t>=p.invisEnd){p.invisEnd=0;S(g).filter(q=>q.room===p.room&&q.id!==p.id&&q.alive).forEach(q=>msg(g,q,'The air shimmers and distorts nearby...','warn'))}
   if(p.obs&&g.sab&&g.sab.type==='comms'){p.obs=null;msg(g,p,'The cameras went offline!','warn')}
@@ -136,18 +168,19 @@ function startDoing(g,p,k,t){const sp=TASKS[k.key].steps[k.step],T=sp.type,R=()=
   :T==='dial'?{n:0,need:3,miss:0,t:R(),w:11}:T==='order'?{grid:sh([1,2,3,4,5,6,7,8,9]),i:0}:null;
  const D=sp.dur*CFG.taskTime*1000;p.doing={task:k,type:T,start:t,min:t+D,end:T==='timed'?t+D:0,step:k.step,st,last:t}}
 function act(g,p,d){const t=now();
- if(g.phase==='lobby'){if(d.a==='dir'){const x=+d.dx||0,y=+d.dy||0,l=Math.max(1,Math.hypot(x,y));p.dx=x/l;p.dy=y/l}else if(d.a==='chat'){const x=String(d.text||'').trim().slice(0,120);if(x&&t-(p.lastChat||0)>600){p.lastChat=t;g.lchat.push({n:p.name,c:p.c,x});g.lchat=g.lchat.slice(-60)}}return}
+ if(g.phase==='lobby'){if(d.a==='pos')setPos(g,p,d,t);else if(d.a==='dir'){const x=+d.dx||0,y=+d.dy||0,l=Math.max(1,Math.hypot(x,y));p.dx=x/l;p.dy=y/l}else if(d.a==='chat'){const x=String(d.text||'').trim().slice(0,120);if(x&&t-(p.lastChat||0)>600){p.lastChat=t;g.lchat.push({n:p.name,c:p.c,x});g.lchat=g.lchat.slice(-60)}}return}
  if(g.phase==='over')return;
  const A=d.a,tg=g.players[d.target];
+ if(A==='pos'){setPos(g,p,d,t);return}
  if(A==='dir'){const x=+d.dx||0,y=+d.dy||0,l=Math.max(1,Math.hypot(x,y));p.dx=x/l;p.dy=y/l;return}
  if(g.revealEnd>t)return; // everyone is frozen during the role reveal
  if(A==='report'){const b=(g.bodies||[]).find(b=>dst(p,b.x,b.y)<=CFG.buttonRange);if(!p.alive||g.meeting||!b)return;g.meeting={caller:p.id,start:t,end:t+CFG.meetingTime*1000,votes:{},chat:[]};S(g).forEach(q=>{q.doing=null;q.dx=q.dy=0});g.bodies=[];pub(g,p.name+' reported '+b.name+"'s body!",'meeting');return}
  if(A==='meeting'){if(!p.alive||g.meeting||p.meetings>=CFG.meetingsPerPlayer||dst(p,BTN[0],BTN[1])>CFG.buttonRange)return;p.meetings++;g.bodies=[];g.meeting={caller:p.id,start:t,end:t+CFG.meetingTime*1000,votes:{},chat:[]};S(g).forEach(q=>{q.doing=null;q.dx=q.dy=0});pub(g,p.name+' called a meeting!','meeting');return}
- if(g.meeting){if(A==='chat'&&p.alive){const x=String(d.text||'').trim().slice(0,120);if(x&&t-(p.lastChat||0)>600){p.lastChat=t;g.meeting.chat.push({n:p.name,c:p.c,x});g.meeting.chat=g.meeting.chat.slice(-60)}}if(A==='vote'&&p.alive&&!g.meeting.votes[p.id]&&(d.target==='skip'||(tg&&tg.alive)))g.meeting.votes[p.id]=d.target;return}
- if(!p.alive)return;
+ if(g.meeting){if(g.meeting.result)return;if(A==='chat'&&p.alive){const x=String(d.text||'').trim().slice(0,120);if(x&&t-(p.lastChat||0)>600){p.lastChat=t;g.meeting.chat.push({n:p.name,c:p.c,x});g.meeting.chat=g.meeting.chat.slice(-60)}}if(A==='vote'&&p.alive&&!g.meeting.votes[p.id]&&(d.target==='skip'||(tg&&tg.alive)))g.meeting.votes[p.id]=d.target;return}
+ if(!p.alive&&(p.left||!GHOST_OK.includes(A)))return;
  const sab=g.sab,im=p.team==='imp';
  switch(A){
- case'vent':{if(!(im||p.role==='Engineer')||!VENTS.includes(p.room)||!VENTS.includes(d.room)||d.room===p.room||dst(p,...ventPos(p.room))>CFG.actionRange)return;if(t<(p.ventCd||0))return;p.ventCd=t+CFG.ventCooldown*1000;[p.x,p.y]=ventPos(d.room);go(g,p,d.room);break}
+ case'vent':{if(!(im||p.role==='Engineer')||!VENTS.includes(p.room)||!VENTS.includes(d.room)||d.room===p.room||dst(p,...ventPos(p.room))>CFG.actionRange)return;if(t<(p.ventCd||0))return;p.ventCd=t+CFG.ventCooldown*1000;[p.x,p.y]=ventPos(d.room);p.tp=(p.tp||0)+1;go(g,p,d.room);break}
  case'task':{const k=p.tasks.find(x=>x.id===d.task);if(!k||k.done||p.doing||!inRange(p,k))return;startDoing(g,p,k,t);break}
  case'wire':{const dg=p.doing;if(!dg||dg.type!=='wires'||!inRange(p,dg.task))return;const l=+d.l,r=+d.r;if(l>=0&&l<4&&r>=0&&r<4&&dg.st.right[r]===l&&!dg.st.done[l]){dg.st.done[l]=1;if(dg.st.done.every(x=>x))dg.solved=1}break}
  case'hold':{const dg=p.doing;if(dg&&(dg.type==='fill'||dg.type==='hold2')&&inRange(p,dg.task))dg.st.hold=d.on?1:0;break}
@@ -163,13 +196,17 @@ function act(g,p,d){const t=now();
  case'invis':{if(p.role!=='Phantom'||p.invisUsed||p.invisEnd)return;p.invisUsed=true;p.invisEnd=t+rnd(...CFG.invis)*1000;break}
  case'sabotage':{if(!im||sab||t<g.sabCd)return;const ty=d.type;if(!['lights','comms','doors','reactor'].includes(ty))return;
   const dur={lights:CFG.lightsDur,comms:CFG.commsDur,doors:CFG.doorsDur,reactor:CFG.reactorTime}[ty];
-  g.sab={type:ty,end:t+dur*1000,hands:{},room:ty==='doors'?Object.keys(ROOMS)[(rnd(1,7))|0]:null};g.sabCd=t+CFG.sabCd*1000;
+  g.sab={type:ty,end:t+dur*1000,hands:{},room:ty==='doors'?Object.keys(ROOMS)[(rnd(0,8))|0]:null};g.sabCd=t+CFG.sabCd*1000;
   pub(g,{lights:'Lights are out! Fix at Electrical.',comms:'Comms down! Fix at Communication.',doors:'Doors locked: '+g.sab.room+' sealed temporarily.',reactor:'REACTOR MELTDOWN! Repair at Reactor!'}[ty],'sab');break}
  case'repair':{if(!sab||p.doing||im)return;const need={lights:'Electrical',comms:'Communication',reactor:'Reactor'}[sab.type];if(!need||p.room!==need||dst(p,...repPos(need))>CFG.actionRange)return;
   const key='_'+sab.type;startDoing(g,p,{id:'sab',key,name:TASKS[key].name,kind:'Sabotage',step:0,done:false,sab:sab.type},t);break}
  case'scout':{if(p.role!=='Scout'||t<p.scoutCd||!ROOMS[d.room])return;if(sab&&sab.type==='comms')return msg(g,p,'Comms are down!','warn');
   p.scoutCd=t+CFG.scoutCd*1000;p.obs={room:d.room,end:t+CFG.scoutObserve*1000,log:[]};break}
  case'protect':{const g2=nearest(g,p);if(p.role!=='Guardian Angel'||t<p.guardCd||!g2)return;p.guardCd=t+CFG.guardCd*1000;g2.guard=t+CFG.guardDur*1000;g2.guardBy=p.id;msg(g,p,'Protecting '+g2.name,'good');break}
+ case'hint':{if(p.role!=='Influencer'||t<(p.hintCd||0)||!(p.hintsLeft>0))return;
+  const cat=['hat','gl','pt','hd'][rnd(0,4)|0],list=ITEMS[cat],ii=imp(g)[cat]|0,pos=Math.random()<CFG.influencerPositive,o=list.map((_,i)=>i).filter(i=>i!==ii),item=pos?ii:o[rnd(0,o.length)|0],
+  T=HINTTXT[cat],key=(pos?'p':'n')+(item?'':'0'),text=item?T[key](list[item].toLowerCase()):T[key];
+  p.hintCd=t+CFG.influencerCd*1000;p.hintsLeft--;g.hint={id:id(),cat,item,pos,text,end:t+8000};pub(g,'Hint: '+text,'hint');break}
  case'heal':{const h2=nearest(g,p);if(p.role!=='Medic'||p.healUsed||p.heal||!h2)return;if(CFG.medicCapAtMax&&h2.lives>=CFG.lives)return msg(g,p,'Target is already at max lives','warn');p.healUsed=true;p.heal={target:h2.id,end:t+rnd(...CFG.healDelay)*1000};msg(g,p,'Healing '+h2.name+'... stay patient','good');break}}
  check(g)}
 function leaveGame(g,p){if(p.res){try{p.res.end()}catch{}p.res=null}
@@ -179,35 +216,35 @@ function leaveGame(g,p){if(p.res){try{p.res.end()}catch{}p.res=null}
  if(S(g).every(q=>q.left)){delete G[g.code];return}
  if(g.phase==='play')pub(g,p.name+' left the game.','info');check(g)}
 function go(g,p,room){const old=p.room;p.doing=null;p.room=room;
- if(!p.invisEnd)S(g).forEach(o=>{if(o.obs){if(o.obs.room===old)o.obs.log.push(p.name+' left');if(o.obs.room===room)o.obs.log.push(p.name+' entered')}})}
+ if(!p.invisEnd&&p.alive)S(g).forEach(o=>{if(o.obs){if(o.obs.room===old)o.obs.log.push(p.name+' left');if(o.obs.room===room)o.obs.log.push(p.name+' entered')}})}
 function view(g,p){const t=now(),dead=!p.alive,im=p.team==='imp',dark=g.sab&&g.sab.type==='lights'&&!im&&!dead;
  const V=g.phase==='lobby'?99999:dark?90:260,dist=q=>Math.hypot(q.x-p.x,q.y-p.y);
- const occ=S(g).filter(q=>q.id!==p.id&&q.alive&&(dead||!q.invisEnd&&dist(q)<V&&(q.room===p.room||dist(q)<110))).map(q=>({id:q.id,name:dark?'???':q.name,x:Math.round(q.x),y:Math.round(q.y),c:q.c,h:q.hat,room:dead?q.room:undefined}));
+ const occ=S(g).filter(q=>q.id!==p.id&&q.alive&&(dead||!q.invisEnd&&dist(q)<V&&(q.room===p.room||dist(q)<110))).map(q=>({id:q.id,name:dark?'???':q.name,x:Math.round(q.x),y:Math.round(q.y),c:q.c,h:q.hat,gl:q.gl,pt:q.pt,hd:q.hd,room:dead?q.room:undefined}));
  const T=S(g).filter(q=>q.team==='crew'&&!q.left).flatMap(q=>q.tasks);
- const v={now:t,phase:g.phase,code:g.code,host:g.host===p.id,players:S(g).map(q=>({id:q.id,name:q.name,alive:q.alive,c:q.c,h:q.hat})),
+ const v={now:t,phase:g.phase,code:g.code,host:g.host===p.id,players:S(g).map(q=>({id:q.id,name:q.name,alive:q.alive,c:q.c,h:q.hat,gl:q.gl,pt:q.pt,hd:q.hd})),
   progress:[T.reduce((a,x)=>a+x.step,0),T.reduce((a,x)=>a+TASKS[x.key].steps.length,0)],sab:g.sab&&{type:g.sab.type,end:g.sab.end,room:g.sab.room,need:CFG.reactorRepairers,prog:Math.round(g.sab.prog||0)},
-  meeting:g.meeting&&{chat:g.meeting.chat,end:g.meeting.end,voted:Object.keys(g.meeting.votes).length,mine:g.meeting.votes[p.id]||null},
-  msgs:p.msgs,reveal:g.revealEnd||0,winner:g.winner,why:g.why,cfg:p.cfgSent?undefined:{map:{ROOMS,st:ST,rep:REP,btn:BTN,halls:HALLS,vent:VENT,walk:WALK,block:BLOCK},speed:SPEED,ventRooms:VENTS,min:CFG.minP,rooms:Object.keys(ROOMS)}};
+  meeting:g.meeting&&{chat:g.meeting.chat,end:g.meeting.end,voted:Object.keys(g.meeting.votes).length,mine:g.meeting.votes[p.id]||null,result:g.meeting.result&&{none:!g.meeting.result.target,name:g.meeting.result.name,c:g.meeting.result.c,end:g.meeting.result.end}},
+  msgs:p.msgs,hint:g.hint||undefined,reveal:g.revealEnd||0,winner:g.winner,why:g.why,cfg:p.cfgSent?undefined:{map:{ROOMS,st:ST,rep:REP,btn:BTN,halls:HALLS,vent:VENT,walk:WALK,block:BLOCK},speed:SPEED,ventRooms:VENTS,min:CFG.minP,rooms:Object.keys(ROOMS)}};
  if(g.phase!=='lobby'){const nt=nearest(g,p),ni=p.tasks.findIndex(k=>!k.done&&inRange(p,k)),rp=g.sab&&{lights:'Electrical',comms:'Communication',reactor:'Reactor'}[g.sab.type];
-  v.me={cam:p.obs&&{room:p.obs.room,end:p.obs.end,list:S(g).filter(q=>q.alive&&!q.invisEnd&&roomAt(q.x,q.y)===p.obs.room).map(q=>({x:q.x,y:q.y,c:q.c,h:q.hat})),bodies:(g.bodies||[]).filter(b=>roomAt(b.x,b.y)===p.obs.room).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat}))},hat:p.hat,healing:p.heal&&p.heal.end,near:{body:p.alive&&!g.meeting&&(g.bodies||[]).some(b=>dst(p,b.x,b.y)<=CFG.buttonRange)?1:0,btn:p.alive&&!g.meeting&&p.meetings<CFG.meetingsPerPlayer&&dst(p,BTN[0],BTN[1])<=CFG.buttonRange,tgt:nt&&nt.name,task:ni>=0?p.tasks[ni].id:null,vent:(im||p.role==='Engineer')&&VENTS.includes(p.room)&&dst(p,...ventPos(p.room))<=CFG.actionRange,repair:!im&&!!rp&&p.room===rp&&dst(p,...repPos(rp))<=CFG.actionRange},id:p.id,name:p.name,role:p.role,team:p.team,lives:p.lives,alive:p.alive,room:p.room,x:Math.round(p.x),y:Math.round(p.y),c:p.c,vis:V,tasks:p.tasks.map(k=>{const sp=!k.done&&TASKS[k.key].steps[k.step];return{id:k.id,name:k.name,kind:k.kind,done:k.done,step:k.step,steps:TASKS[k.key].steps.length,label:sp&&sp.label,type:sp&&sp.type,room:sp&&ST[sp.st][0],st:sp&&sp.st}}),
-   doing:p.doing&&p.doing.end,dg:p.doing&&{id:p.doing.task.id,type:p.doing.type,min:p.doing.min,start:p.doing.start,end:p.doing.end,state:p.doing.st,name:p.doing.task.name,key:p.doing.task.key,stp:p.doing.step,label:TASKS[p.doing.task.key].steps[p.doing.step].label},invis:p.invisEnd,invisUsed:p.invisUsed,healUsed:p.healUsed,atkCd:p.atkCd,scoutCd:p.scoutCd,guardCd:p.guardCd,sabCd:g.sabCd,
-   attacking:im&&g.attack?g.attack.end:0,atkTgt:im&&g.attack?g.attack.target:null,atkLen:im&&g.attack?g.attack.end-g.attack.start:0,guarded:p.guard};v.occ=occ;v.bodies=(g.bodies||[]).filter(b=>dead||dist(b)<V).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat}));
+  v.me={cam:p.obs&&{room:p.obs.room,end:p.obs.end,list:S(g).filter(q=>q.alive&&!q.invisEnd&&roomAt(q.x,q.y)===p.obs.room).map(q=>({x:q.x,y:q.y,c:q.c,h:q.hat,gl:q.gl,pt:q.pt,hd:q.hd})),bodies:(g.bodies||[]).filter(b=>roomAt(b.x,b.y)===p.obs.room).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat,gl:b.gl,pt:b.pt,hd:b.hd}))},hat:p.hat,gl:p.gl,pt:p.pt,hd:p.hd,healing:p.heal&&p.heal.end,near:{body:p.alive&&!g.meeting&&(g.bodies||[]).some(b=>dst(p,b.x,b.y)<=CFG.buttonRange)?1:0,btn:p.alive&&!g.meeting&&p.meetings<CFG.meetingsPerPlayer&&dst(p,BTN[0],BTN[1])<=CFG.buttonRange,tgt:nt&&nt.name,task:ni>=0?p.tasks[ni].id:null,vent:p.alive&&(im||p.role==='Engineer')&&VENTS.includes(p.room)&&dst(p,...ventPos(p.room))<=CFG.actionRange,repair:p.alive&&!im&&!!rp&&p.room===rp&&dst(p,...repPos(rp))<=CFG.actionRange},id:p.id,name:p.name,role:p.role,team:p.team,lives:p.lives,alive:p.alive,room:p.room,x:Math.round(p.x),y:Math.round(p.y),tp:p.tp||0,c:p.c,vis:V,tasks:p.tasks.map(k=>{const sp=!k.done&&TASKS[k.key].steps[k.step];return{id:k.id,name:k.name,kind:k.kind,done:k.done,step:k.step,steps:TASKS[k.key].steps.length,label:sp&&sp.label,type:sp&&sp.type,room:sp&&ST[sp.st][0],st:sp&&sp.st}}),
+   doing:p.doing&&p.doing.end,dg:p.doing&&{id:p.doing.task.id,type:p.doing.type,min:p.doing.min,start:p.doing.start,end:p.doing.end,state:p.doing.st,name:p.doing.task.name,key:p.doing.task.key,stp:p.doing.step,label:TASKS[p.doing.task.key].steps[p.doing.step].label},invis:p.invisEnd,invisUsed:p.invisUsed,healUsed:p.healUsed,atkCd:p.atkCd,scoutCd:p.scoutCd,guardCd:p.guardCd,hintCd:p.hintCd,hintsLeft:p.hintsLeft,sabCd:g.sabCd,
+   attacking:im&&g.attack?g.attack.end:0,atkTgt:im&&g.attack?g.attack.target:null,atkLen:im&&g.attack?g.attack.end-g.attack.start:0,guarded:p.guard};v.occ=occ;v.bodies=(g.bodies||[]).filter(b=>dead||dist(b)<V).map(b=>({x:b.x,y:b.y,c:b.c,h:b.hat,gl:b.gl,pt:b.pt,hd:b.hd}));
   if(g.phase==='over')v.roles=S(g).map(q=>[q.name,q.role,q.lives])}
- else{v.me={id:p.id,name:p.name,x:p.x,y:p.y,c:p.c,hat:p.hat,vis:99999,near:{},tasks:[],alive:true};v.occ=occ;v.lchat=g.lchat}return v}
+ else{v.me={id:p.id,tp:p.tp||0,name:p.name,x:p.x,y:p.y,c:p.c,hat:p.hat,gl:p.gl,pt:p.pt,hd:p.hd,vis:99999,near:{},tasks:[],alive:true};v.occ=occ;v.lchat=g.lchat}return v}
 function push(g){for(const p of S(g))if(p.res){p.res.write('data: '+JSON.stringify(view(g,p))+'\n\n');p.cfgSent=true}}
-let lt=now();setInterval(()=>{const t=now(),dt=Math.min(.2,(t-lt)/1000);lt=t;for(const g of Object.values(G)){try{step(g,dt);tick(g);push(g)}catch(e){console.error(e)}}},50);
-const body=r=>new Promise(res=>{let b='';r.on('data',c=>b+=c);r.on('end',()=>{try{res(JSON.parse(b||'{}'))}catch{res({})}})});
-const srv=http.createServer(async(req,res)=>{const u=new URL(req.url,'http://x');
- if(req.method==='GET'&&u.pathname==='/events'){const g=G[u.searchParams.get('g')],p=g&&g.players[u.searchParams.get('p')];if(!p)return res.end();
-  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});p.res=res;p.cfgSent=false;res.write('data: '+JSON.stringify(view(g,p))+'\n\n');p.cfgSent=true;req.on('close',()=>{if(p.res===res){p.res=null;p.dropAt=now()}});return}
+let lt=now();setInterval(()=>{const t=now(),dt=Math.min(.2,(t-lt)/1000);lt=t;for(const g of Object.values(G)){if(S(g).some(p=>p.res))g.seen=t;else if(t-(g.seen||(g.seen=t))>6e5){delete G[g.code];continue}try{step(g,dt);tick(g);push(g)}catch(e){console.error(e)}}},50);
+const body=r=>new Promise(res=>{let b='';r.on('data',c=>{b+=c;if(b.length>1e5){b='';r.destroy()}});r.on('close',()=>res({}));r.on('end',()=>{try{res(JSON.parse(b||'{}'))}catch{res({})}})});
+const handle=async(req,res)=>{const u=new URL(req.url,'http://x');
+ if(req.method==='GET'&&u.pathname==='/events'){const g=G[u.searchParams.get('g')],p=g&&g.players[u.searchParams.get('p')];if(!p){res.writeHead(404);return res.end()}
+  res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});p.res=res;p.cfgSent=false;p.pn=0;res.write('data: '+JSON.stringify(view(g,p))+'\n\n');p.cfgSent=true;req.on('close',()=>{if(p.res===res){p.res=null;p.dropAt=now()}});return}
  if(req.method==='POST'){const d=await body(req);let out={};
   if(d.op==='create'||d.op==='join'){let g;if(d.op==='create'){let c;do{c=String(1000+(Math.random()*9000|0))}while(G[c]);g=G[c]={code:c,players:{},phase:'lobby',lchat:[],bodies:[]}}else g=G[String(d.code||'').replace(/\D/g,'')];
    if(!g||g.phase!=='lobby'||S(g).length>=CFG.maxP)out={error:'Cannot join that game'};
-   else{const p={id:id(),name:String(d.name||'Player').replace(/[<>&"'`]/g,'').slice(0,12)||'Player',msgs:[],alive:true,lives:CFG.lives,room:'Cafeteria',x:621+(Math.random()*140-70),y:300+Math.random()*22,dx:0,dy:0};setProf(g,p,d.color,d.hat);g.players[p.id]=p;if(d.op==='create')g.host=p.id;out={g:g.code,p:p.id};push(g)}}
+   else{const p={id:id(),name:String(d.name||'Player').replace(/[<>&"'`]/g,'').slice(0,12)||'Player',msgs:[],alive:true,lives:CFG.lives,room:'Cafeteria',x:621+(Math.random()*140-70),y:300+Math.random()*22,dx:0,dy:0};setProf(g,p,d.color,d.hat,d.gl,d.pt,d.hd);g.players[p.id]=p;if(d.op==='create')g.host=p.id;out={g:g.code,p:p.id};push(g)}}
   else{const g=G[d.g],p=g&&g.players[d.p];if(!p)out={error:'bad session'};
-   else if(d.op==='profile'){if(g.phase==='lobby')setProf(g,p,d.color,d.hat)}
+   else if(d.op==='profile'){if(g.phase==='lobby')setProf(g,p,d.color,d.hat,d.gl,d.pt,d.hd)}
    else if(d.op==='start'){if(g.host===p.id&&g.phase==='lobby'&&S(g).length>=CFG.minP)start(g)}
-   else if(d.op==='leave')leaveGame(g,p);else if(d.op==='act')act(g,p,d);if(g)push(g)}
+   else if(d.op==='leave')leaveGame(g,p);else if(d.op==='act')act(g,p,d);if(g&&!(d.op==='act'&&d.a==='pos'))push(g)}
   res.setHeader('Content-Type','application/json');return res.end(JSON.stringify(out))}
- if(u.pathname==='/map'){const f=['map.jpg','map.png'].map(n=>path.join(__dirname,n)).find(fs.existsSync);if(f){res.writeHead(200,{'Content-Type':f.endsWith('jpg')?'image/jpeg':'image/png','Cache-Control':'max-age=3600'});return res.end(fs.readFileSync(f))}}
- res.writeHead(200,{'Content-Type':'text/html'});res.end(fs.readFileSync(path.join(__dirname,'index.html')))});srv.on('connection',s=>s.setNoDelay(true));srv.listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));
+ if(u.pathname==='/map'){const f=['map.jpg','map.png'].map(n=>path.join(__dirname,n)).find(fs.existsSync);if(f){res.writeHead(200,{'Content-Type':f.endsWith('jpg')?'image/jpeg':'image/png','Cache-Control':'max-age=3600'});return res.end(fs.readFileSync(f))}res.writeHead(404);return res.end()}
+ res.writeHead(200,{'Content-Type':'text/html'});res.end(fs.readFileSync(path.join(__dirname,'index.html')))};const srv=http.createServer((req,res)=>handle(req,res).catch(e=>{console.error(e);try{if(!res.headersSent)res.writeHead(500);res.end()}catch{}}));srv.on('connection',s=>s.setNoDelay(true));srv.listen(process.env.PORT||3000,()=>console.log('http://localhost:3000'));
